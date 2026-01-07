@@ -2,28 +2,46 @@ import { sequelize, Order, OrderDetail, Cart, CartItem } from "../models/index.j
 import { publishOrderCancelled } from "../queues/order.cancel.producer.js";
 import { publishOrderCreated } from "../queues/order.producer.js";
 import cartService from "./cart.service.js";
+import { generateOrderCode } from "../utils/orderCode.js";
 
 export const OrderService = {
   async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
     return sequelize.transaction(async (t) => {
-      const order = await Order.create(
-        {
-          user_id: user?.id || null,
-          email: shippingInfo.email, 
-          payment_method_id,
-          receiver_name: shippingInfo.name,
-          receiver_phone: shippingInfo.phone,
-          address_line: shippingInfo.address_line,
-          ward: shippingInfo.ward,
-          district: shippingInfo.district,
-          city: shippingInfo.city,
-          note: shippingInfo.note,
+      let order;
+      let retries = 0;
 
-          total_amount: total,
-          status: "Pending",
-        },
-        { transaction: t }
-      );
+      while (!order && retries < 5) {
+        try {
+          order = await Order.create(
+            {
+              order_code: generateOrderCode(),
+              user_id: user?.id || null,
+              email: shippingInfo.email,
+              payment_method_id,
+              receiver_name: shippingInfo.name,
+              receiver_phone: shippingInfo.phone,
+              address_line: shippingInfo.address_line,
+              ward: shippingInfo.ward,
+              district: shippingInfo.district,
+              city: shippingInfo.city,
+              note: shippingInfo.note,
+              total_amount: total,
+              status: "Pending",
+            },
+            { transaction: t }
+          );
+        } catch (err) {
+          if (err.name === "SequelizeUniqueConstraintError") {
+            retries++;
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      if (!order) {
+        throw new Error("Không thể tạo mã đơn hàng, vui lòng thử lại");
+      }
 
       const details = items.map((i) => ({
         order_id: order.id,
@@ -35,11 +53,12 @@ export const OrderService = {
       await OrderDetail.bulkCreate(details, { transaction: t });
 
       if (user?.id) {
-      await cartService.clearCart(user.id, t);
-     }
+        await cartService.clearCart(user.id, t);
+      }
 
       await publishOrderCreated({
         orderId: order.id,
+        orderCode: order.order_code,
         items: details,
         totalAmount: total,
       });

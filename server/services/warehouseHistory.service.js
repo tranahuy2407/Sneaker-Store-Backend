@@ -7,7 +7,6 @@ import {
 import { PaginationService } from "./pagination.service.js";
 
 export class WarehouseHistoryService {
-  // LẤY TẤT CẢ + FILTER + PAGINATION
   static async getAll({ page = 1, limit = 10, sizeId, productId }) {
     const where = {};
     if (sizeId) where.size_id = sizeId;

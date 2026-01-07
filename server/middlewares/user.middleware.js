@@ -6,7 +6,6 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
 // Middleware xác thực User
 export const user = async (req, res, next) => {
-    console.log("❌ USER middleware hit:", req.method, req.originalUrl);
   try {
     const token = req.cookies.userToken;
 

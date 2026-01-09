@@ -77,4 +77,122 @@ async checkout(req, res) {
       });
     }
   },
+
+  /* ===== GET ALL ===== */
+  async getAll(req, res) {
+    try {
+      const { page, limit, status, keyword } = req.query;
+
+      const result = await OrderService.getAllOrders({
+        page: Number(page) || 1,
+        limit: Number(limit) || 20,
+        status,
+        keyword,
+      });
+
+      res.json({
+        success: true,
+        ...result,
+      });
+    } catch (err) {
+      res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
+  },
+
+  /* ===== GET DETAIL ===== */
+  async getDetail(req, res) {
+    try {
+      const { id } = req.params;
+
+      const order = await OrderService.getOrderDetail(id);
+
+      res.json({
+        success: true,
+        data: order,
+      });
+    } catch (err) {
+      res.status(404).json({
+        success: false,
+        message: err.message,
+      });
+    }
+  },
+
+  /* ===== UPDATE STATUS ===== */
+  async updateStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!status) {
+        return res.status(400).json({
+          message: "Status là bắt buộc",
+        });
+      }
+
+      const order = await OrderService.updateStatus({
+        orderId: id,
+        status,
+      });
+
+      res.json({
+        success: true,
+        data: order,
+      });
+    } catch (err) {
+      res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
+  },
+
+async getMyOrders(req, res) {
+  try {
+    const { page, limit, status } = req.query;
+
+    const result = await OrderService.getMyOrders({
+      user: req.user,
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
+      status,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+},
+
+
+async getMyOrderDetail(req, res) {
+  try {
+    const { id } = req.params;
+
+    const order = await OrderService.getMyOrderDetail({
+      orderId: id,
+      user: req.user,
+    });
+
+    res.json({
+      success: true,
+      data: order,
+    });
+  } catch (err) {
+    res.status(404).json({
+      success: false,
+      message: err.message,
+    });
+  }
+},
+
 };

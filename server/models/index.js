@@ -20,6 +20,7 @@ import Cart from "./cart.model.js";
 import CartItem from "./cartItem.model.js";
 import ProductSize from "./product_size.model.js";
 import PaymentMethod from "./payment_method.model.js";
+import Notification from "./notification.model.js";
 
 // ------------------ RELATIONSHIPS ------------------
 
@@ -164,4 +165,5 @@ export {
   CartItem,
   ProductSize,
   PaymentMethod,
+  Notification
 };

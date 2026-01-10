@@ -1,6 +1,15 @@
 import { getChannel } from "./rabbit.js";
-import { sequelize, Order, OrderDetail, ProductSize } from "../models/index.js";
-import { emitOrderStatus } from "../helpers/socket.js";
+import {
+  sequelize,
+  Order,
+  OrderDetail,
+  ProductSize,
+  Notification,
+} from "../models/index.js";
+import {
+  emitOrderStatus,
+  emitNewOrderToAdmin,
+} from "../helpers/socket.js";
 
 const QUEUE = "order_cancelled";
 
@@ -18,13 +27,12 @@ export const startOrderCancelConsumer = async () => {
       const order = await Order.findByPk(data.orderId, { transaction: t });
       if (!order) throw new Error("ORDER_NOT_FOUND");
 
-      // Lấy chi tiết đơn
+      /* ================= HOÀN KHO ================= */
       const details = await OrderDetail.findAll({
         where: { order_id: data.orderId },
         transaction: t,
       });
 
-      // Cộng kho lại
       for (const item of details) {
         await ProductSize.increment(
           { stock: item.quantity },
@@ -35,26 +43,42 @@ export const startOrderCancelConsumer = async () => {
         );
       }
 
-      // Update order
-      await Order.update(
+      /* ================= UPDATE ORDER ================= */
+      await order.update(
         {
           status: "Cancelled",
           note: `[HUỶ ĐƠN] ${data.reason}`,
         },
-        { where: { id: data.orderId }, transaction: t }
+        { transaction: t }
       );
 
       await t.commit();
 
-      // Emit realtime
-      emitOrderStatus(data.orderId, "Cancelled");
+      const adminNoti = await Notification.create({
+        title: "Đơn hàng bị huỷ",
+        message: `Đơn hàng #${order.order_code} đã bị huỷ`,
+        type: "order_cancelled",
+        entity_type: "order",
+        entity_id: order.id,
+        receiver_type: "admin",
+        receiver_id: null,
+      });
+
+      emitOrderStatus(order.id, "Cancelled");
+
+      emitNewOrderToAdmin({
+        id: adminNoti.id,
+        type: "order_cancelled",
+        orderId: order.id,
+        orderCode: order.order_code,
+        reason: data.reason,
+      });
 
       channel.ack(msg);
     } catch (err) {
       await t.rollback();
       console.error("Cancel order consumer error:", err);
 
-      // retry
       channel.nack(msg, false, true);
     }
   });

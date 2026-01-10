@@ -33,28 +33,24 @@ notificationRouter.patch(
 /* ================= ADMIN ================= */
 notificationRouter.get(
   "/api/v1/notifications/admin",
-  user,
   admin,
   notificationController.getAdminNotifications
 );
 
 notificationRouter.get(
   "/api/v1/notifications/admin/unread-count",
-  user,
   admin,
   notificationController.getAdminUnreadCount
 );
 
 notificationRouter.patch(
   "/api/v1/notifications/admin/read/:id",
-  user,
   admin,
   notificationController.markAdminAsRead
 );
 
 notificationRouter.patch(
   "/api/v1/notifications/admin/read-all",
-  user,
   admin,
   notificationController.markAllAdminAsRead
 );

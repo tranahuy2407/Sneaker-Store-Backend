@@ -6,7 +6,8 @@ import { admin } from "../middlewares/auth.middleware.js";
 const orderRouter = express.Router();
 
 orderRouter.post("/api/v1/orders", guest, OrderController.checkout);
-orderRouter.post("/api/v1/orders/:id/cancel", guest, OrderController.cancel);
+orderRouter.put("/api/v1/orders/:id/cancel", guest, OrderController.cancel);
+
 orderRouter.get(
   "/api/v1/admin/orders",
   admin,

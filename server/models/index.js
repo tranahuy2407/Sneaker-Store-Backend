@@ -21,6 +21,8 @@ import CartItem from "./cartItem.model.js";
 import ProductSize from "./product_size.model.js";
 import PaymentMethod from "./payment_method.model.js";
 import Notification from "./notification.model.js";
+import Coupon from "./coupon.model.js";
+import CouponProduct from "./coupon_product.model.js";
 
 // ------------------ RELATIONSHIPS ------------------
 
@@ -144,6 +146,29 @@ CartItem.belongsTo(ProductSize, {
 });
 
 
+// Coupon - Product (N-N)
+Coupon.belongsToMany(Product, {
+  through: CouponProduct,
+  foreignKey: "coupon_id",
+  as: "products",
+});
+
+Product.belongsToMany(Coupon, {
+  through: CouponProduct,
+  foreignKey: "product_id",
+  as: "coupons",
+});
+// Promotion - Coupon (1-N)
+Promotion.hasMany(Coupon, {
+  foreignKey: "promotion_id",
+  as: "coupons",
+});
+
+Coupon.belongsTo(Promotion, {
+  foreignKey: "promotion_id",
+  as: "promotion",
+});
+
 export {
   sequelize,
   Admin,
@@ -165,5 +190,8 @@ export {
   CartItem,
   ProductSize,
   PaymentMethod,
-  Notification
+  Notification,
+  Coupon,
+  CouponProduct,
+
 };

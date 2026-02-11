@@ -1,4 +1,4 @@
-import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize } from "../models/index.js";
+import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification } from "../models/index.js";
 import { publishOrderCancelled } from "../queues/order.cancel.producer.js";
 import { publishOrderCreated } from "../queues/order.producer.js";
 import cartService from "./cart.service.js";

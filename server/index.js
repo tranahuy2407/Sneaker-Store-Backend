@@ -23,6 +23,8 @@ import addressRouter from "./routers/address.routes.js";
 import orderRouter from "./routers/order.router.js";
 import shippingCostRouter from "./routers/shippingCost.router.js";
 import notificationRouter from "./routers/notification.router.js";
+import invoiceRouter from "./routers/invoice.router.js";
+import couponRouter from "./routers/coupon.router.js";
 
 dotenv.config();
 
@@ -57,6 +59,8 @@ const port = 8080;
     app.use(paymentRouter);
     app.use(shippingCostRouter);
     app.use(notificationRouter);
+    app.use(invoiceRouter);
+    app.use(couponRouter);
     app.use(adminRouter);
     app.use(userRouter);
     app.use(productRouter);

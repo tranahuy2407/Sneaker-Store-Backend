@@ -13,10 +13,11 @@ const Promotion = sequelize.define(
     start_date: { type: DataTypes.DATE },
     end_date: { type: DataTypes.DATE },
 
-    status: {
-      type: DataTypes.ENUM("Active", "Inactive"),
-      defaultValue: "Active",
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
     },
+
   },
   {
     tableName: "promotions",

@@ -80,7 +80,6 @@ export const getAdminProfileService = async (adminId) => {
   }
 };
 
-
 export const getAdminByIdService = async (adminId) => {
   try {
     const admin = await Admin.findByPk(adminId);

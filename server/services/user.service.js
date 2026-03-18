@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { User, UserAddress } from "../models/index.js";
+import { Order, User, UserAddress } from "../models/index.js";
 
 import {
   generateUserTokens,
@@ -116,7 +116,19 @@ export const adminGetAllUsersService = async () => {
 export const adminGetUserByIdService = async (id) => {
   try {
     const user = await User.findByPk(id, {
-      attributes: { exclude: ["password"] },
+      attributes: { 
+        exclude: ["password"] 
+      },
+      include: [
+        {
+          model: UserAddress,
+          as: "addresses",
+        },
+        {
+          model: Order,
+          as: "orders",
+        }
+      ],
     });
     if (!user) throw new Error("User not found");
     return user;
@@ -125,13 +137,12 @@ export const adminGetUserByIdService = async (id) => {
   }
 };
 
-// UPDATE FULL USER (admin)
+// UPDATE FULL USER 
 export const adminUpdateUserService = async (id, updateData) => {
   try {
     const user = await User.findByPk(id);
     if (!user) throw new Error("User not found");
 
-    // Nếu gửi password thì hash lại
     if (updateData.password) {
       updateData.password = await bcrypt.hash(updateData.password, 10);
     }

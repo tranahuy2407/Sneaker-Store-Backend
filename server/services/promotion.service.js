@@ -77,7 +77,7 @@ export const deletePromotionService = async (id) => {
 };
 
 /**
- * Gán coupon vào promotion (CHUẨN BUSINESS)
+ * Gán coupon vào promotion 
  */
 export const addCouponsToPromotionService = async (
   promotionId,

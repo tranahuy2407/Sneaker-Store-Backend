@@ -8,6 +8,12 @@ const couponRouter = express.Router();
 couponRouter.get("/api/v1/coupons", CouponController.getAll);
 couponRouter.get("/api/v1/coupons/:id", CouponController.getDetail);
 
+// Áp dụng mã giảm giá (user gọi khi checkout)
+couponRouter.post(
+  "/api/v1/coupons/apply-discount",
+  CouponController.applyDiscount
+);
+
 // Admin
 couponRouter.post("/api/v1/coupons", admin, CouponController.create);
 couponRouter.put("/api/v1/coupons/:id", admin, CouponController.update);

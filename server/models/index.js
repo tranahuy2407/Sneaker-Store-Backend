@@ -189,7 +189,7 @@ export {
   Cart,
   CartItem,
   ProductSize,
-  PaymentMethod,
+  PaymentMethod,  
   Notification,
   Coupon,
   CouponProduct,

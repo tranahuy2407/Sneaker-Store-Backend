@@ -24,6 +24,8 @@ import Notification from "./notification.model.js";
 import Coupon from "./coupon.model.js";
 import CouponProduct from "./coupon_product.model.js";
 import Favorite from "./favorite.model.js";
+import RecentlyViewed from "./recently_viewed.model.js";
+import PromotionProduct from "./promotion_product.model.js";
 
 // ------------------ RELATIONSHIPS ------------------
 
@@ -78,12 +80,12 @@ Review.belongsTo(Product, { foreignKey: "product_id", as: "product" });
 
 // Promotion - Product (N-N)
 Promotion.belongsToMany(Product, {
-  through: "promotion_product",
+  through: PromotionProduct,
   foreignKey: "promotion_id",
   as: "products",
 });
 Product.belongsToMany(Promotion, {
-  through: "promotion_product",
+  through: PromotionProduct,
   foreignKey: "product_id",
   as: "promotions",
 });
@@ -178,6 +180,14 @@ Favorite.belongsTo(User, { foreignKey: "user_id", as: "user" });
 Product.hasMany(Favorite, { foreignKey: "product_id", as: "favorites" });
 Favorite.belongsTo(Product, { foreignKey: "product_id", as: "product" });
 
+// User - RecentlyViewed (1-N)
+User.hasMany(RecentlyViewed, { foreignKey: "user_id", as: "recentlyViewed" });
+RecentlyViewed.belongsTo(User, { foreignKey: "user_id", as: "user" });
+
+// Product - RecentlyViewed (1-N)
+Product.hasMany(RecentlyViewed, { foreignKey: "product_id", as: "recentlyViewedViews" });
+RecentlyViewed.belongsTo(Product, { foreignKey: "product_id", as: "product" });
+
 export {
   sequelize,
   Admin,
@@ -202,5 +212,7 @@ export {
   Notification,
   Coupon,
   CouponProduct,
-  Favorite
+  Favorite,
+  RecentlyViewed,
+  PromotionProduct
 };

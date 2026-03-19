@@ -25,6 +25,13 @@ export const uploadToCloudinary = (file, folder) => {
 
 export const deleteFromCloudinary = async (publicUrl) => {
   if (!publicUrl) return;
-  const publicId = publicUrl.split("/").slice(-2).join("/").split(".")[0];
-  await cloudinary.uploader.destroy(`PERN_SNEAKER/${publicId}`);
+  try {
+    const match = publicUrl.match(/PERN_SNEAKER\/(.+)\./);
+    if (match) {
+      const publicId = `PERN_SNEAKER/${match[1]}`;
+      await cloudinary.uploader.destroy(publicId);
+    }
+  } catch (error) {
+    console.error("Cloudinary delete error:", error);
+  }
 };

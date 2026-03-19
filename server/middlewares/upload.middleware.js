@@ -8,6 +8,19 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+
+const slugify = (str) => {
+  if (!str) return "default";
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") 
+    .replace(/[đĐ]/g, "d")
+    .replace(/[^a-z0-9\s_-]/g, "") 
+    .trim()
+    .replace(/\s+/g, "_"); 
+};
+
 /**
  * Upload 1 file cho các entity khác (Category, Brand, Promotion)
  */
@@ -15,10 +28,7 @@ export const dynamicUpload = (baseFolder, fieldName) => {
   const storage = new CloudinaryStorage({
     cloudinary,
     params: (req, file) => {
-      const folderName =
-        req.body && req.body.name
-          ? req.body.name.trim().replace(/\s+/g, "_")
-          : "default";
+      const folderName = slugify(req.body && req.body.name);
 
       return {
         folder: `PERN_SNEAKER/${baseFolder}/${folderName}`,
@@ -46,10 +56,7 @@ export const uploadProductImages = (req, res, next) => {
   const storage = new CloudinaryStorage({
     cloudinary,
     params: async (req, file) => {
-      const folderName =
-        req.body && req.body.name
-          ? req.body.name.trim().replace(/\s+/g, "_")
-          : "default";
+      const folderName = slugify(req.body && req.body.name);
 
       return {
         folder: `PERN_SNEAKER/Products/${folderName}`,

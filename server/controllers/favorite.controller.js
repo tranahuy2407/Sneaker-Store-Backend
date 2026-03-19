@@ -6,10 +6,6 @@ class FavoriteController {
    */
   async toggleFavorite(req, res) {
     try {
-      console.log("FavoriteController.toggleFavorite reached");
-      console.log("Headers:", req.headers);
-      console.log("Body:", req.body);
-
       const { productId } = req.body || {};
       const userId = req.user?.id;
 

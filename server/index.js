@@ -27,6 +27,7 @@ import invoiceRouter from "./routers/invoice.router.js";
 import couponRouter from "./routers/coupon.router.js";
 import reviewRouter from "./routers/review.router.js";
 import favoriteRouter from "./routers/favorite.router.js";
+import recentlyViewedRouter from "./routers/recentlyViewed.router.js";
 
 dotenv.config();
 
@@ -65,6 +66,7 @@ const port = 8080;
     app.use(couponRouter);
     app.use(reviewRouter);
     app.use(favoriteRouter);
+    app.use(recentlyViewedRouter);
     app.use(adminRouter);
     app.use(userRouter);
     app.use(productRouter);
@@ -72,6 +74,7 @@ const port = 8080;
     app.use(warehouseHistoryRouter);
     app.use(cartRouter);
     app.use(orderRouter);  
+
     server.listen(port, () => {
       console.log(`Server chạy trên port ${port}`);
     });

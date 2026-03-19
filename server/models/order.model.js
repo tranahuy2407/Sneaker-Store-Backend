@@ -29,6 +29,12 @@ const Order = sequelize.define("Order", {
   receiver_phone: {
     type: DataTypes.STRING(20),
     allowNull: false,
+    validate: {
+      is: {
+        args: /^(0|\+84)[3|5|7|8|9][0-9]{8}$/,
+        msg: "Số điện thoại không hợp lệ (định dạng chuẩn Việt Nam)",
+      },
+    },
   },
   email: {
     type: DataTypes.STRING(255),
@@ -38,7 +44,14 @@ const Order = sequelize.define("Order", {
     },
     validate: {
       isEmail: {
-        msg: "Email không đúng định dạng !",
+        msg: "Email không đúng định dạng!",
+      },
+      notEmpty: {
+        msg: "Email không được để trống",
+      },
+      len: {
+        args: [5, 255],
+        msg: "Độ dài email từ 5 đến 255 ký tự",
       },
     },
   },

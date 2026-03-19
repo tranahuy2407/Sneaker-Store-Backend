@@ -23,6 +23,7 @@ import PaymentMethod from "./payment_method.model.js";
 import Notification from "./notification.model.js";
 import Coupon from "./coupon.model.js";
 import CouponProduct from "./coupon_product.model.js";
+import Favorite from "./favorite.model.js";
 
 // ------------------ RELATIONSHIPS ------------------
 
@@ -169,6 +170,14 @@ Coupon.belongsTo(Promotion, {
   as: "promotion",
 });
 
+// User - Favorite (1-N)
+User.hasMany(Favorite, { foreignKey: "user_id", as: "favorites" });
+Favorite.belongsTo(User, { foreignKey: "user_id", as: "user" });
+
+// Product - Favorite (1-N)
+Product.hasMany(Favorite, { foreignKey: "product_id", as: "favorites" });
+Favorite.belongsTo(Product, { foreignKey: "product_id", as: "product" });
+
 export {
   sequelize,
   Admin,
@@ -193,5 +202,5 @@ export {
   Notification,
   Coupon,
   CouponProduct,
-
+  Favorite
 };

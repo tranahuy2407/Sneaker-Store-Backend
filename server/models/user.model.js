@@ -13,8 +13,16 @@ const User = sequelize.define(
       allowNull: false,
       unique: true,
       validate: {
-        isEmail: true, 
-        len: [5, 255],
+        isEmail: {
+          msg: "Email không đúng định dạng!",
+        },
+        notEmpty: {
+          msg: "Email không được để trống",
+        },
+        len: {
+          args: [5, 255],
+          msg: "Độ dài email từ 5 đến 255 ký tự",
+        },
       },
     },
 

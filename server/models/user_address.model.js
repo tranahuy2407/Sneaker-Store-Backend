@@ -18,7 +18,10 @@ const UserAddress = sequelize.define("UserAddress", {
       type: DataTypes.STRING(20),
       allowNull: false,
       validate: {
-        is: /^(0|\+84)[0-9]{9,10}$/, 
+        is: {
+          args: /^(0|\+84)[3|5|7|8|9][0-9]{8}$/,
+          msg: "Số điện thoại không hợp lệ (định dạng chuẩn Việt Nam)",
+        },
       },
     },
   address_line: { type: DataTypes.STRING(255), allowNull: false }, 

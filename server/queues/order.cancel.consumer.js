@@ -5,11 +5,13 @@ import {
   OrderDetail,
   ProductSize,
   Notification,
+  User,
 } from "../models/index.js";
 import {
   emitOrderStatus,
   emitNewOrderToAdmin,
 } from "../helpers/socket.js";
+import { sendEmailTask } from "./email.producer.js";
 
 const QUEUE = "order_cancelled";
 
@@ -73,6 +75,21 @@ export const startOrderCancelConsumer = async () => {
         orderCode: order.order_code,
         reason: data.reason,
       });
+
+      // Email Notification
+      const user = await User.findByPk(order.user_id);
+      if (user && user.email) {
+        await sendEmailTask({
+          type: "ORDER_CANCELLED",
+          to: user.email,
+          payload: {
+            orderId: order.id,
+            orderCode: order.order_code,
+            reason: data.reason,
+            customerName: user.username,
+          },
+        });
+      }
 
       channel.ack(msg);
     } catch (err) {

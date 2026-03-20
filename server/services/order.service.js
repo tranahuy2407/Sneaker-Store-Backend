@@ -1,4 +1,4 @@
-import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification } from "../models/index.js";
+import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification, UserAddress } from "../models/index.js";
 import { publishOrderCancelled } from "../queues/order.cancel.producer.js";
 import { publishOrderCreated } from "../queues/order.producer.js";
 import cartService from "./cart.service.js";
@@ -7,6 +7,7 @@ import { emitOrderStatus } from "../helpers/socket.js";
 
 export const OrderService = {
 async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
+  console.log("--- CREATE ORDER ITEMS ---", JSON.stringify(items, null, 2));
   let order;     
   let details;
 
@@ -46,18 +47,67 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       throw new Error("Không thể tạo mã đơn hàng, vui lòng thử lại");
     }
 
-    details = items.map((i) => ({
-      order_id: order.id,
-      product_id: i.product_id,
-      product_size_id: i.product_size_id,
-      quantity: i.quantity,
-      price: i.price ?? 0,
-    }));
+    const productIds = items.map(i => i.product_id || i.productId);
+    const products = await Product.findAll({
+      where: { id: productIds },
+      attributes: ['id', 'name'],
+      include: [
+        {
+          model: ProductSize,
+          as: "sizes",
+          attributes: ["id", "size"],
+        },
+      ],
+      transaction: t
+    });
 
-    await OrderDetail.bulkCreate(details, { transaction: t });
+    details = items.map((i) => {
+      const product_id = i.product_id || i.productId;
+      const product = products.find(p => p.id == product_id);
+      
+      // Tự động lấy size đầu tiên nếu không được gửi từ frontend
+      let product_size_id = i.product_size_id || i.productSizeId;
+      if (!product_size_id && product?.sizes?.length > 0) {
+        product_size_id = product.sizes[0].id;
+      }
+
+      if (!product_size_id) {
+        throw new Error(`Sản phẩm "${product?.name || product_id}" không có thông tin kích thước (size)!`);
+      }
+
+      return {
+        order_id: order.id,
+        product_id: product_id,
+        product_size_id: product_size_id,
+        quantity: i.quantity,
+        price: i.price ?? 0,
+        name: product ? product.name : "Sản phẩm",
+      };
+    });
+
+    await OrderDetail.bulkCreate(details.map(({name, ...d}) => d), { transaction: t });
 
     if (user?.id) {
       await cartService.clearCart(user.id, t);
+
+      const addressCount = await UserAddress.count({ 
+        where: { user_id: user.id },
+        transaction: t 
+      });
+
+      if (addressCount === 0) {
+        await UserAddress.create({
+          user_id: user.id,
+          receiver_name: shippingInfo.name,
+          receiver_phone: shippingInfo.phone,
+          address_line: shippingInfo.address_line,
+          ward: shippingInfo.ward,
+          district: shippingInfo.district,
+          city: shippingInfo.city,
+          note: shippingInfo.note,
+          is_default: true,
+        }, { transaction: t });
+      }
     }
   }); 
 
@@ -291,3 +341,4 @@ async getMyOrderDetail({ orderId, user }) {
 },
 
 };
+  

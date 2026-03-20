@@ -8,6 +8,7 @@ import { connectDB, sequelize } from "./config/connect.js";
 import { connectRabbitMQ } from "./queues/rabbit.js";
 import { startOrderConsumer } from "./queues/order.consumer.js";
 import { startOrderCancelConsumer } from "./queues/order.cancel.consumer.js";
+import { startEmailConsumer } from "./queues/email.consumer.js";
 import { initSocket } from "./helpers/socket.js";
 
 import categoryRouter from "./routers/category.router.js";
@@ -56,6 +57,7 @@ const port = 8080;
     await connectRabbitMQ();
     await startOrderConsumer();
     await startOrderCancelConsumer();
+    await startEmailConsumer();
     app.use(addressRouter);
     app.use(categoryRouter);
     app.use(brandRouter);

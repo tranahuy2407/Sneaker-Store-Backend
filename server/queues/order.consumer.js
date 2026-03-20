@@ -5,12 +5,14 @@ import {
   Invoice,
   sequelize,
   Notification,
+  User,
 } from "../models/index.js";
 import {
   emitOrderStatus,
   emitNewOrderToAdmin,
 } from "../helpers/socket.js";
 import { Op } from "sequelize";
+import { sendEmailTask } from "./email.producer.js";
 
 const QUEUE = "order_created";
 
@@ -83,6 +85,22 @@ export const startOrderConsumer = async () => {
           receiver_type: "user",
           receiver_id: data.userId,
         });
+
+        // 5. Send EMAIL
+        const user = await User.findByPk(data.userId);
+        if (user && user.email) {
+          await sendEmailTask({
+            type: "ORDER_CONFIRMATION",
+            to: user.email,
+            payload: {
+              orderId: data.orderId,
+              orderCode: data.orderCode,
+              totalAmount: data.totalAmount,
+              items: data.items,
+              customerName: user.username,
+            },
+          });
+        }
       }
 
       emitOrderStatus(data.orderId, "Pending");

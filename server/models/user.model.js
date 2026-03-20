@@ -28,11 +28,19 @@ const User = sequelize.define(
 
     password: { type: DataTypes.STRING(255), allowNull: false },
     status: {
-          type: DataTypes.ENUM("Active", "Inactive"),
-          allowNull: false,
-          defaultValue: "Active",
-        },
-        created_at: { type: DataTypes.DATE, defaultValue: Sequelize.NOW },
+      type: DataTypes.ENUM("Active", "Inactive"),
+      allowNull: false,
+      defaultValue: "Active",
+    },
+    reset_password_token: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    reset_password_expires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    created_at: { type: DataTypes.DATE, defaultValue: Sequelize.NOW },
     updated_at: { type: DataTypes.DATE, defaultValue: Sequelize.NOW },
   },
   {

@@ -10,7 +10,10 @@ import {
   adminUserStatsService,
   adminUpdateUserService,
   updateUserProfileService, 
-  addUserAddressService 
+  addUserAddressService,
+  forgotPasswordService,
+  resetPasswordService,
+  googleLoginService
 } from "../services/user.service.js";
 
 // REGISTER
@@ -195,6 +198,79 @@ export const updateUserProfile = async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ status: "error", message: error.message });
+  }
+};
+
+// GOOGLE LOGIN
+export const googleLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID Token is required",
+      });
+    }
+
+    const { user, token, refreshToken } = await googleLoginService(idToken);
+
+    res.cookie("userToken", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 60 * 60 * 1000,
+    });
+
+    res.cookie("userRefreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: user,
+    });
+  } catch (error) {
+    res.status(401).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+};
+
+// FORGOT PASSWORD
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const result = await forgotPasswordService(email);
+    res.status(200).json({
+      status: "success",
+      message: result.message,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+};
+
+// RESET PASSWORD
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    const result = await resetPasswordService(token, newPassword);
+    res.status(200).json({
+      status: "success",
+      message: result.message,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: "error",
+      message: error.message,
+    });
   }
 };
 

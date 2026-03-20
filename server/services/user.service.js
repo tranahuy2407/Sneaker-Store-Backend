@@ -6,6 +6,11 @@ import {
   verifyUserRefreshToken,
 } from "../middlewares/user.middleware.js";
 import { Op } from "sequelize";
+import crypto from "crypto";
+import { sendForgotPasswordEmail } from "./mail.service.js";
+import { OAuth2Client } from "google-auth-library";
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // REGISTER USER
 export const registerUserService = async (userData) => {
@@ -289,5 +294,91 @@ export const addUserAddressService = async (userId, addressData) => {
     return newAddress;
   } catch (error) {
     throw error;
+  }
+};
+
+// FORGOT PASSWORD
+export const forgotPasswordService = async (email) => {
+  try {
+    const user = await User.findOne({ where: { email } });
+    if (!user) throw new Error("Email không tồn tại trong hệ thống!");
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetExpires = new Date(Date.now() + 3600000); // 1 hour
+
+    await user.update({
+      reset_password_token: resetToken,
+      reset_password_expires: resetExpires,
+    });
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    await sendForgotPasswordEmail(user.email, resetUrl);
+
+    return { message: "Email khôi phục mật khẩu đã được gửi!" };
+  } catch (error) {
+    throw error;
+  }
+};
+
+// RESET PASSWORD
+export const resetPasswordService = async (token, newPassword) => {
+  try {
+    const user = await User.findOne({
+      where: {
+        reset_password_token: token,
+        reset_password_expires: { [Op.gt]: new Date() },
+      },
+    });
+
+    if (!user) throw new Error("Mã khôi phục không hợp lệ hoặc đã hết hạn!");
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await user.update({
+      password: hashedPassword,
+      reset_password_token: null,
+      reset_password_expires: null,
+    });
+
+    return { message: "Mật khẩu đã được cập nhật thành công!" };
+  } catch (error) {
+    throw error;
+  }
+};
+
+// GOOGLE LOGIN
+export const googleLoginService = async (idToken) => {
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    let user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      const randomPassword = crypto.randomBytes(16).toString("hex");
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      
+      user = await User.create({
+        username: email.split("@")[0] + "_" + Math.floor(Math.random() * 1000),
+        email,
+        password: hashedPassword,
+        status: "Active",
+      });
+    }
+
+    const tokens = generateUserTokens(user);
+    const { password: _, ...userWithoutPassword } = user.toJSON();
+
+    return {
+      user: userWithoutPassword,
+      ...tokens,
+    };
+  } catch (error) {
+    console.error("Google login service error:", error);
+    throw new Error("Xác thực Google thất bại!");
   }
 };

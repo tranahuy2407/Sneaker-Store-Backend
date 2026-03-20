@@ -1,41 +1,49 @@
-import express from "express";
-import {
-  registerUser,
-  loginUser,
-  logoutUser,
-  refreshUserToken, 
-  getUserProfile,
-   adminGetAllUsers,
-  adminGetUserById,
-  adminDeleteUser,
-  adminUserStats,
-  adminUpdateUser,
-  updateUserProfile,
-  addUserAddress
-} from "../controllers/user.controller.js";
-import { user } from "../middlewares/user.middleware.js";
-import { admin } from "../middlewares/auth.middleware.js";
+  import express from "express";
+  import {
+    registerUser,
+    loginUser,
+    logoutUser,
+    refreshUserToken, 
+    getUserProfile,
+    adminGetAllUsers,
+    adminGetUserById,
+    adminDeleteUser,
+    adminUserStats,
+    adminUpdateUser,
+    updateUserProfile,
+    addUserAddress,
+    forgotPassword,
+    resetPassword,
+    googleLogin
+  } from "../controllers/user.controller.js";
+  import { user } from "../middlewares/user.middleware.js";
+  import { admin } from "../middlewares/auth.middleware.js";
 
-const userRouter = express.Router();
+  const userRouter = express.Router();
 
-// Public routes
-userRouter.post("/api/v1/user/register", registerUser);
-userRouter.post("/api/v1/user/login", loginUser);
-userRouter.post("/api/v1/user/refresh-token", refreshUserToken);
+  // Public routes
+  userRouter.post("/api/v1/user/register", registerUser);
+  userRouter.post("/api/v1/user/login", loginUser);
+  userRouter.post("/api/v1/user/refresh-token", refreshUserToken);
+  userRouter.post("/api/v1/user/google-login", googleLogin);
 
-// Protected routes
-userRouter.post("/api/v1/user/logout", user, logoutUser);
-userRouter.get("/api/v1/user/profile", user, getUserProfile);
+  // Password Reset
+  userRouter.post("/api/v1/user/forgot-password", forgotPassword);
+  userRouter.post("/api/v1/user/reset-password", resetPassword);
 
-userRouter.get("/api/v1/admin/users", admin, adminGetAllUsers);
-userRouter.get("/api/v1/admin/users/:id", admin, adminGetUserById);
+  // Protected routes
+  userRouter.post("/api/v1/user/logout", user, logoutUser);
+  userRouter.get("/api/v1/user/profile", user, getUserProfile);
 
-userRouter.put("/api/v1/admin/users/:id", admin, adminUpdateUser);
+  userRouter.get("/api/v1/admin/users", admin, adminGetAllUsers);
+  userRouter.get("/api/v1/admin/users/:id", admin, adminGetUserById);
 
-userRouter.delete("/api/v1/admin/users/:id", admin, adminDeleteUser);
+  userRouter.put("/api/v1/admin/users/:id", admin, adminUpdateUser);
 
-userRouter.get("/api/v1/admin/users/stats", admin, adminUserStats);
-userRouter.put("/api/v1/user/profile", user, updateUserProfile);
-userRouter.post("/api/v1/user/address", user, addUserAddress);
+  userRouter.delete("/api/v1/admin/users/:id", admin, adminDeleteUser);
 
-export default userRouter;
+  userRouter.get("/api/v1/admin/users/stats", admin, adminUserStats);
+  userRouter.put("/api/v1/user/profile", user, updateUserProfile);
+  userRouter.post("/api/v1/user/address", user, addUserAddress);
+
+  export default userRouter;

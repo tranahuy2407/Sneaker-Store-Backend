@@ -41,6 +41,7 @@ async checkout(req, res) {
     res.status(201).json({
       success: true,
       orderId: order.id,
+      paymentUrl: order.getDataValue("paymentUrl") || null
     });
   } catch (err) {
     console.error("CHECKOUT ERROR:", err);
@@ -194,5 +195,28 @@ async getMyOrderDetail(req, res) {
     });
   }
 },
+
+async getHistory(req, res) {
+  try {
+    const { page, limit } = req.query;
+    const result = await OrderService.getOrderHistory({
+      page: Number(page) || 1,
+      limit: Number(limit) || 20
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+},
+
+async resetOrder(req, res) {
+  try {
+    const { id } = req.params;
+    const order = await OrderService.resetOrder({ orderId: id, user: req.user });
+    res.json({ success: true, data: order });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+}
 
 };

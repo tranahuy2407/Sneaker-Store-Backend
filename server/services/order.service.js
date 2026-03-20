@@ -1,19 +1,35 @@
-import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification, UserAddress } from "../models/index.js";
+import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification, UserAddress, Coupon } from "../models/index.js";
 import { publishOrderCancelled } from "../queues/order.cancel.producer.js";
 import { publishOrderCreated } from "../queues/order.producer.js";
 import cartService from "./cart.service.js";
+import { ZaloPayService } from "./zalopay.service.js";
 import { generateOrderCode } from "../utils/orderCode.js";
 import { emitOrderStatus } from "../helpers/socket.js";
 
 export const OrderService = {
 async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
-  console.log("--- CREATE ORDER ITEMS ---", JSON.stringify(items, null, 2));
   let order;     
   let details;
 
   await sequelize.transaction(async (t) => {
-    let retries = 0;
+    // 1. Kiểm tra tồn kho trước
+    const productIds = items.map(i => i.product_id || i.productId);
+    const productSizes = await ProductSize.findAll({
+      where: { id: items.map(i => i.product_size_id || i.productSizeId).filter(Boolean) },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
+    for (const item of items) {
+      const sizeId = item.product_size_id || item.productSizeId;
+      const dbSize = productSizes.find(s => s.id == sizeId);
+      if (!dbSize || dbSize.stock < item.quantity) {
+        throw new Error(`Sản phẩm với size ID ${sizeId} không đủ tồn kho.`);
+      }
+    }
+
+    // 2. Tạo đơn hàng
+    let retries = 0;
     while (!order && retries < 5) {
       try {
         order = await Order.create(
@@ -31,6 +47,7 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
             note: shippingInfo.note,
             total_amount: total,
             status: "Pending",
+            payment_status: "Unpaid"
           },
           { transaction: t }
         );
@@ -47,38 +64,22 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       throw new Error("Không thể tạo mã đơn hàng, vui lòng thử lại");
     }
 
-    const productIds = items.map(i => i.product_id || i.productId);
+    // 3. Trừ tồn kho & Tạo chi tiết đơn hàng
     const products = await Product.findAll({
       where: { id: productIds },
       attributes: ['id', 'name'],
-      include: [
-        {
-          model: ProductSize,
-          as: "sizes",
-          attributes: ["id", "size"],
-        },
-      ],
       transaction: t
     });
 
     details = items.map((i) => {
       const product_id = i.product_id || i.productId;
+      const sizeId = i.product_size_id || i.productSizeId;
       const product = products.find(p => p.id == product_id);
       
-      // Tự động lấy size đầu tiên nếu không được gửi từ frontend
-      let product_size_id = i.product_size_id || i.productSizeId;
-      if (!product_size_id && product?.sizes?.length > 0) {
-        product_size_id = product.sizes[0].id;
-      }
-
-      if (!product_size_id) {
-        throw new Error(`Sản phẩm "${product?.name || product_id}" không có thông tin kích thước (size)!`);
-      }
-
       return {
         order_id: order.id,
         product_id: product_id,
-        product_size_id: product_size_id,
+        product_size_id: sizeId,
         quantity: i.quantity,
         price: i.price ?? 0,
         name: product ? product.name : "Sản phẩm",
@@ -87,6 +88,38 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
 
     await OrderDetail.bulkCreate(details.map(({name, ...d}) => d), { transaction: t });
 
+    // Trừ kho thực tế
+    for (const item of items) {
+      const sizeId = item.product_size_id || item.productSizeId;
+      const dbSize = productSizes.find(s => s.id == sizeId);
+      await dbSize.update({ stock: dbSize.stock - item.quantity }, { transaction: t });
+    }
+
+    // 4. Xử lý Coupon (nếu có)
+    if (shippingInfo.couponCode) {
+      const coupon = await Coupon.findOne({ where: { code: shippingInfo.couponCode, is_active: true }, transaction: t });
+      if (coupon) {
+        await coupon.update({ used_count: coupon.used_count + 1 }, { transaction: t });
+      }
+    }
+
+    // 5. Xử lý ZaloPay (nếu chọn)
+    const paymentMethod = await PaymentMethod.findByPk(payment_method_id, { transaction: t });
+    if (paymentMethod && paymentMethod.name.toLowerCase().includes("zalopay")) {
+      const zaloResult = await ZaloPayService.createPayment({
+        orderId: order.id,
+        amount: total,
+        customerName: shippingInfo.name,
+        items: details
+      });
+
+      if (zaloResult.return_code === 1) {
+        await order.update({ transaction_id: zaloResult.app_trans_id }, { transaction: t });
+        order.setDataValue("paymentUrl", zaloResult.order_url);
+      }
+    }
+
+    // 6. Dọn dẹp giỏ hàng
     if (user?.id) {
       await cartService.clearCart(user.id, t);
 
@@ -141,6 +174,39 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
         },
         { transaction: t }
       );
+
+      // Hoàn tồn kho
+      const details = await OrderDetail.findAll({ where: { order_id: orderId }, transaction: t });
+      for (const item of details) {
+        const sizeId = item.product_size_id;
+        const dbSize = await ProductSize.findByPk(sizeId, { transaction: t, lock: t.LOCK.UPDATE });
+        if (dbSize) {
+          await dbSize.update({ stock: dbSize.stock + item.quantity }, { transaction: t });
+        }
+      }
+
+      // Hoàn tiền nếu là ZaloPay và đã thanh toán
+      if (order.payment_status === "Paid" && order.zp_trans_id) {
+        try {
+          const refundResult = await ZaloPayService.refund({
+            zp_trans_id: order.zp_trans_id,
+            amount: order.total_amount,
+            description: `Hoàn tiền đơn hàng #${order.order_code} do bị huỷ`
+          });
+          
+          if (refundResult.return_code === 1) {
+            await order.update({ 
+              payment_status: "Refunded",
+              m_refund_id: refundResult.m_refund_id 
+            }, { transaction: t });
+            console.log(`[ZaloPay] Refunded success for order: ${order.id}, Refund ID: ${refundResult.m_refund_id}`);
+          } else {
+            console.error(`[ZaloPay] Refund failed for order ${order.id}:`, refundResult.return_message);
+          }
+        } catch (refundErr) {
+          console.error(`[ZaloPay] Refund Error for order ${order.id}:`, refundErr.message);
+        }
+      }
 
       await publishOrderCancelled({
         orderId,
@@ -262,7 +328,35 @@ async updateStatus({ orderId, status }) {
   return order;
 },
 
-/* ================= GET MY ORDERS ================= */
+/* ================= RESET ORDER ================= */
+async resetOrder({ orderId, user }) {
+  return sequelize.transaction(async (t) => {
+    const order = await Order.findByPk(orderId, { transaction: t });
+    if (!order) throw new Error("Đơn hàng không tồn tại");
+    if (order.status !== "Cancelled") throw new Error("Chỉ có thể khôi phục đơn hàng đã huỷ");
+
+    const details = await OrderDetail.findAll({ where: { order_id: orderId }, transaction: t });
+    for (const item of details) {
+      const dbSize = await ProductSize.findByPk(item.product_size_id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!dbSize || dbSize.stock < item.quantity) {
+        throw new Error(`Sản phẩm với size ID ${item.product_size_id} không đủ tồn kho để khôi phục.`);
+      }
+      await dbSize.update({ stock: dbSize.stock - item.quantity }, { transaction: t });
+    }
+
+    await order.update({ 
+      status: "Pending",
+      note: "Đơn hàng đã được khôi phục"
+    }, { transaction: t });
+
+    return order;
+  });
+},
+
+async getOrderHistory({ page = 1, limit = 20 }) {
+  return this.getAllOrders({ page, limit, status: "Completed" });
+},
+
 async getMyOrders({ user, page = 1, limit = 10, status }) {
   if (!user?.id) throw new Error("Chưa đăng nhập");
 
@@ -298,7 +392,7 @@ async getMyOrders({ user, page = 1, limit = 10, status }) {
     },
   };
 },
-/* ================= GET MY ORDER DETAIL ================= */
+
 async getMyOrderDetail({ orderId, user }) {
   if (!user?.id) throw new Error("Chưa đăng nhập");
 

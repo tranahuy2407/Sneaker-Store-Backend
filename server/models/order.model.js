@@ -82,6 +82,27 @@ const Order = sequelize.define("Order", {
     defaultValue: 0,
   },
 
+  payment_status: {
+    type: DataTypes.ENUM("Unpaid", "Paid", "Refunded"),
+    allowNull: false,
+    defaultValue: "Unpaid",
+  },
+
+  transaction_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+
+  zp_trans_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+
+  m_refund_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+
   status: {
     type: DataTypes.ENUM("Pending", "Processing", "Completed", "Cancelled"),
     allowNull: false,

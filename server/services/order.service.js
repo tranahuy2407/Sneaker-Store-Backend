@@ -1,4 +1,5 @@
-import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification, UserAddress, Coupon } from "../models/index.js";
+import { Sequelize } from "sequelize";
+import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification, UserAddress, Coupon, ShippingCost } from "../models/index.js";
 import { publishOrderCancelled } from "../queues/order.cancel.producer.js";
 import { publishOrderCreated } from "../queues/order.producer.js";
 import cartService from "./cart.service.js";
@@ -10,9 +11,9 @@ export const OrderService = {
 async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
   let order;     
   let details;
+  let finalTotal = total;
 
   await sequelize.transaction(async (t) => {
-    // 1. Kiểm tra tồn kho trước
     const productIds = items.map(i => i.product_id || i.productId);
     const productSizes = await ProductSize.findAll({
       where: { id: items.map(i => i.product_size_id || i.productSizeId).filter(Boolean) },
@@ -28,7 +29,26 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       }
     }
 
-    // 2. Tạo đơn hàng
+    let calculatedShippingCost = 0;
+    let shippingCostId = shippingInfo.shipping_cost_id;
+
+    if (shippingCostId) {
+      const sc = await ShippingCost.findByPk(shippingCostId, { transaction: t });
+      if (sc) calculatedShippingCost = sc.cost;
+    } else if (shippingInfo.city) {
+      const sc = await ShippingCost.findOne({
+        where: { name: { [Sequelize.Op.iLike]: `%${shippingInfo.city.trim()}%` } },
+        transaction: t
+      });
+      if (sc) {
+        calculatedShippingCost = sc.cost;
+        shippingCostId = sc.id;
+      }
+    }
+
+
+    finalTotal = total;
+
     let retries = 0;
     while (!order && retries < 5) {
       try {
@@ -45,7 +65,9 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
             district: shippingInfo.district,
             city: shippingInfo.city,
             note: shippingInfo.note,
-            total_amount: total,
+            total_amount: finalTotal,
+            shipping_cost: calculatedShippingCost,
+            shipping_cost_id: shippingCostId,
             status: "Pending",
             payment_status: "Unpaid"
           },
@@ -64,10 +86,9 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       throw new Error("Không thể tạo mã đơn hàng, vui lòng thử lại");
     }
 
-    // 3. Trừ tồn kho & Tạo chi tiết đơn hàng
     const products = await Product.findAll({
       where: { id: productIds },
-      attributes: ['id', 'name'],
+      attributes: ['id', 'name', 'price', 'discountPrice'],
       transaction: t
     });
 
@@ -76,26 +97,26 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       const sizeId = i.product_size_id || i.productSizeId;
       const product = products.find(p => p.id == product_id);
       
+      const itemPrice = product ? (product.discountPrice || product.price) : (i.price ?? 0);
+
       return {
         order_id: order.id,
         product_id: product_id,
         product_size_id: sizeId,
         quantity: i.quantity,
-        price: i.price ?? 0,
+        price: itemPrice,
         name: product ? product.name : "Sản phẩm",
       };
     });
 
     await OrderDetail.bulkCreate(details.map(({name, ...d}) => d), { transaction: t });
 
-    // Trừ kho thực tế
     for (const item of items) {
       const sizeId = item.product_size_id || item.productSizeId;
       const dbSize = productSizes.find(s => s.id == sizeId);
       await dbSize.update({ stock: dbSize.stock - item.quantity }, { transaction: t });
     }
 
-    // 4. Xử lý Coupon (nếu có)
     if (shippingInfo.couponCode) {
       const coupon = await Coupon.findOne({ where: { code: shippingInfo.couponCode, is_active: true }, transaction: t });
       if (coupon) {
@@ -103,7 +124,6 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       }
     }
 
-    // 5. Xử lý ZaloPay (nếu chọn)
     const paymentMethod = await PaymentMethod.findByPk(payment_method_id, { transaction: t });
     if (paymentMethod && paymentMethod.name.toLowerCase().includes("zalopay")) {
       const zaloResult = await ZaloPayService.createPayment({
@@ -119,7 +139,6 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       }
     }
 
-    // 6. Dọn dẹp giỏ hàng
     if (user?.id) {
       await cartService.clearCart(user.id, t);
 
@@ -144,13 +163,15 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
     }
   }); 
 
-  await publishOrderCreated({
-    orderId: order.id,
-    orderCode: order.order_code,
-    userId: user?.id || null,
-    items: details,
-    totalAmount: total,
-  });
+    await publishOrderCreated({
+      orderId: order.id,
+      orderCode: order.order_code,
+      userId: user?.id || null,
+      email: order.email,
+      receiverName: order.receiver_name,
+      items: details,
+      totalAmount: finalTotal,
+    });
 
 
   return order;
@@ -175,7 +196,6 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
         { transaction: t }
       );
 
-      // Hoàn tồn kho
       const details = await OrderDetail.findAll({ where: { order_id: orderId }, transaction: t });
       for (const item of details) {
         const sizeId = item.product_size_id;
@@ -185,7 +205,6 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
         }
       }
 
-      // Hoàn tiền nếu là ZaloPay và đã thanh toán
       if (order.payment_status === "Paid" && order.zp_trans_id) {
         try {
           const refundResult = await ZaloPayService.refund({
@@ -228,11 +247,11 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
     }
 
     if (keyword) {
-      where[Op.or] = [
-        { order_code: { [Op.like]: `%${keyword}%` } },
-        { receiver_name: { [Op.like]: `%${keyword}%` } },
-        { receiver_phone: { [Op.like]: `%${keyword}%` } },
-        { email: { [Op.like]: `%${keyword}%` } },
+      where[Sequelize.Op.or] = [
+        { order_code: { [Sequelize.Op.like]: `%${keyword}%` } },
+        { receiver_name: { [Sequelize.Op.like]: `%${keyword}%` } },
+        { receiver_phone: { [Sequelize.Op.like]: `%${keyword}%` } },
+        { email: { [Sequelize.Op.like]: `%${keyword}%` } },
       ];
     }
 
@@ -241,6 +260,7 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       order: [["created_at", "DESC"]],
       limit,
       offset,
+      distinct: true,
     });
 
     return {
@@ -249,6 +269,7 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
         total: count,
         page,
         limit,
+        totalPages: Math.ceil(count / limit),
       },
     };
   },
@@ -375,6 +396,7 @@ async getMyOrders({ user, page = 1, limit = 10, status }) {
     order: [["created_at", "DESC"]],
     limit,
     offset,
+    distinct: true,
     include: [
       {
         model: PaymentMethod,

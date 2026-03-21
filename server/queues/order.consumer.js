@@ -27,25 +27,7 @@ export const startOrderConsumer = async () => {
     const t = await sequelize.transaction();
 
     try {
-      // 1. Trừ kho
-      for (const item of data.items) {
-        const [affected] = await ProductSize.update(
-          { stock: sequelize.literal(`stock - ${item.quantity}`) },
-          {
-            where: {
-              id: item.product_size_id,
-              stock: { [Op.gte]: item.quantity },
-            },
-            transaction: t,
-          }
-        );
-
-        if (affected === 0) {
-          throw new Error("OUT_OF_STOCK");
-        }
-      }
-
-      // 2. Create Invoice
+      // 1. Create Invoice
       await Invoice.create(
         {
           order_id: data.orderId,
@@ -57,7 +39,7 @@ export const startOrderConsumer = async () => {
 
       await t.commit();
 
-      // 3. Notification ADMIN
+      // 2. Notification ADMIN
       const adminNoti = await Notification.create({
         title: "Đơn hàng mới",
         message: `Có đơn hàng mới #${data.orderCode}`,
@@ -74,7 +56,7 @@ export const startOrderConsumer = async () => {
         orderCode: data.orderCode,
       });
 
-      // 4. Notification USER
+      // 3. Notification USER (nếu có tài khoản)
       if (data.userId) {
         await Notification.create({
           title: "Đặt hàng thành công",
@@ -85,41 +67,29 @@ export const startOrderConsumer = async () => {
           receiver_type: "user",
           receiver_id: data.userId,
         });
+      }
 
-        // 5. Send EMAIL
-        const user = await User.findByPk(data.userId);
-        if (user && user.email) {
-          await sendEmailTask({
-            type: "ORDER_CONFIRMATION",
-            to: user.email,
-            payload: {
-              orderId: data.orderId,
-              orderCode: data.orderCode,
-              totalAmount: data.totalAmount,
-              items: data.items,
-              customerName: user.username,
-            },
-          });
-        }
+      // 4. Send EMAIL (Cho cả Guest và User)
+      const targetEmail = data.email;
+      if (targetEmail) {
+        await sendEmailTask({
+          type: "ORDER_CONFIRMATION",
+          to: targetEmail,
+          payload: {
+            orderId: data.orderId,
+            orderCode: data.orderCode,
+            totalAmount: data.totalAmount,
+            items: data.items,
+            customerName: data.receiverName || "Khách hàng",
+          },
+        });
       }
 
       emitOrderStatus(data.orderId, "Pending");
       channel.ack(msg);
     } catch (err) {
-      await t.rollback();
-
-      if (err.message === "OUT_OF_STOCK") {
-        await Order.update(
-          { status: "Cancelled" },
-          { where: { id: data.orderId } }
-        );
-
-        emitOrderStatus(data.orderId, "Cancelled");
-        channel.ack(msg);
-        return;
-      }
-
-      console.error("Rabbit error:", err);
+      if (t) await t.rollback();
+      console.error("Rabbit consumer error:", err);
       channel.ack(msg);
     }
   });

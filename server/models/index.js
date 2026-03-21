@@ -26,6 +26,11 @@ import CouponProduct from "./coupon_product.model.js";
 import Favorite from "./favorite.model.js";
 import RecentlyViewed from "./recently_viewed.model.js";
 import PromotionProduct from "./promotion_product.model.js";
+import HomeSection from "./home_section.model.js";
+import HomeSectionProduct from "./home_section_product.model.js";
+import News from "./news.model.js";
+import Contact from "./contact.model.js";
+import StoreInfo from "./store_info.model.js";
 
 // ------------------ RELATIONSHIPS ------------------
 
@@ -188,6 +193,18 @@ RecentlyViewed.belongsTo(User, { foreignKey: "user_id", as: "user" });
 Product.hasMany(RecentlyViewed, { foreignKey: "product_id", as: "recentlyViewedViews" });
 RecentlyViewed.belongsTo(Product, { foreignKey: "product_id", as: "product" });
 
+// HomeSection - Product (N-N)
+HomeSection.belongsToMany(Product, {
+  through: HomeSectionProduct,
+  foreignKey: "home_section_id",
+  as: "products",
+});
+Product.belongsToMany(HomeSection, {
+  through: HomeSectionProduct,
+  foreignKey: "product_id",
+  as: "homeSections",
+});
+
 export {
   sequelize,
   Admin,
@@ -214,5 +231,10 @@ export {
   CouponProduct,
   Favorite,
   RecentlyViewed,
-  PromotionProduct
+  PromotionProduct,
+  HomeSection,
+  HomeSectionProduct,
+  News,
+  Contact,
+  StoreInfo,
 };

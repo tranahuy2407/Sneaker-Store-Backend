@@ -68,7 +68,6 @@ export const sendForgotPasswordEmail = async (to, resetUrl) => {
 
 export const sendOrderConfirmationEmail = async (to, orderData) => {
   const { orderCode, totalAmount, items, customerName, orderId } = orderData;
-  
   const itemsHtml = items.map(item => `
     <tr>
       <td style="padding: 15px 10px; border-bottom: 1px solid #efefef;">

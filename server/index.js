@@ -29,6 +29,10 @@ import couponRouter from "./routers/coupon.router.js";
 import reviewRouter from "./routers/review.router.js";
 import favoriteRouter from "./routers/favorite.router.js";
 import recentlyViewedRouter from "./routers/recentlyViewed.router.js";
+import homeSectionRouter from "./routers/home_section.router.js";
+import newsRouter from "./routers/news.router.js";
+import contactRouter from "./routers/contact.router.js";
+import storeInfoRouter from "./routers/store_info.router.js";
 
 dotenv.config();
 
@@ -76,6 +80,10 @@ const port = 8080;
     app.use(warehouseHistoryRouter);
     app.use(cartRouter);
     app.use(orderRouter);  
+    app.use(homeSectionRouter);
+    app.use(newsRouter);
+    app.use(contactRouter);
+    app.use(storeInfoRouter);    
 
     server.listen(port, () => {
       console.log(`Server chạy trên port ${port}`);

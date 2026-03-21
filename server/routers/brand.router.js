@@ -6,17 +6,17 @@ import {
   updateBrand,
   deleteBrand,
   getBrandById,
-  getBrandProducts,
+  getBrandProductsBySlug,
 } from "../controllers/brand.controller.js";
 import { admin } from "../middlewares/auth.middleware.js";
 import { uploadBrand } from "../middlewares/upload.middleware.js";
-
+ 
 const brandRouter = express.Router();
-
+ 
 brandRouter.get("/api/v1/brands", getAllBrands);
 brandRouter.get("/api/v1/brands/:slug", getBrandBySlug);
 brandRouter.get("/api/v1/brands/id/:id", getBrandById);
-brandRouter.get("/api/v1/brands/:id/products", getBrandProducts);
+brandRouter.get("/api/v1/brands/:slug/products", getBrandProductsBySlug);
 brandRouter.post(
   "/api/v1/brands",
   admin,

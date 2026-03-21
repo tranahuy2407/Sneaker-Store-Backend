@@ -46,27 +46,52 @@ export const PaymentController = {
     let result = {};
     try {
       const { data: dataStr, mac: reqMac } = req.body;
+      console.log("[ZaloPay] Callback body raw:", req.body);
       
       const isValid = ZaloPayService.verifyCallback(dataStr, reqMac);
 
       if (!isValid) {
+        console.error("[ZaloPay] Callback MAC verification failed!");
         result.return_code = -1;
         result.return_message = "mac not equal";
       } else {
         const dataJson = JSON.parse(dataStr);
+        console.log("[ZaloPay] Callback data verified:", dataJson);
         const app_trans_id = dataJson["app_trans_id"];
         const zp_trans_id = dataJson["zp_trans_id"];
 
         // Cập nhật trạng thái đơn hàng trong database
         const order = await Order.findOne({ where: { transaction_id: app_trans_id } });
         if (order) {
+          console.log("[ZaloPay] Found order for callback:", order.id);
           await order.update({ 
             payment_status: "Paid",
             status: "Processing",
             zp_trans_id: zp_trans_id?.toString(),
             note: "Đơn hàng đã được thanh toán qua ZaloPay."
           });
-          console.log(`[ZaloPay] Callback success for order: ${order.id}, ZP Trans ID: ${zp_trans_id}`);
+          console.log(`[ZaloPay] Order ${order.id} status updated to Paid.`);
+
+          // Thêm thông báo cho người dùng
+          if (order.user_id) {
+            try {
+              const { Notification } = await import("../models/index.js");
+              await Notification.create({
+                title: "Thanh toán thành công",
+                message: `Đơn hàng #${order.order_code} đã được thanh toán thành công qua ZaloPay.`,
+                type: "payment_success",
+                entity_type: "order",
+                entity_id: order.id,
+                receiver_type: "user",
+                receiver_id: order.user_id,
+              });
+              console.log(`[ZaloPay] Notification created for user: ${order.user_id}`);
+            } catch (notifErr) {
+              console.error("[ZaloPay] Failed to create notification:", notifErr.message);
+            }
+          }
+        } else {
+          console.warn(`[ZaloPay] Order not found for trans_id: ${app_trans_id}`);
         }
 
         result.return_code = 1;

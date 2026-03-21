@@ -46,9 +46,11 @@ export const dynamicUpload = (baseFolder, fieldName) => {
 // Single file upload
 export const uploadCategory = dynamicUpload("Categories", "image");
 export const uploadBrand = dynamicUpload("Brands", "image");
-export const uploadProduct = dynamicUpload("Products", "image");
 export const uploadPromotion = dynamicUpload("Promotions", "image");
 export const uploadPaymentLogo = dynamicUpload("Payments", "image");
+export const uploadHomeSection = dynamicUpload("HomeSections", "banner");
+export const uploadNews = dynamicUpload("News", "image");
+export const uploadStoreLogo = dynamicUpload("Store", "image");
 /**
  * Upload nhiều ảnh sản phẩm, folder theo tên sản phẩm
  */

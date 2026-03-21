@@ -35,6 +35,7 @@ orderRouter.put("/api/v1/orders/:id/reset", user, OrderController.resetOrder);
 // ZaloPay Routes
 orderRouter.post("/api/v1/orders/zalopay", guest, PaymentController.createZaloPayOrder);
 orderRouter.post("/api/v1/orders/zalopay-callback", PaymentController.zalopayCallback);
+orderRouter.post("/api/v1/payment/zalopay-callback", PaymentController.zalopayCallback); 
 orderRouter.get("/api/v1/orders/zalopay-status/:app_trans_id", guest, PaymentController.queryStatus);
 orderRouter.get("/api/v1/orders/zalopay-refund-status/:m_refund_id", guest, PaymentController.queryRefundStatus);
 

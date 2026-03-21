@@ -41,6 +41,7 @@ async checkout(req, res) {
     res.status(201).json({
       success: true,
       orderId: order.id,
+      order_code: order.order_code,
       paymentUrl: order.getDataValue("paymentUrl") || null
     });
   } catch (err) {

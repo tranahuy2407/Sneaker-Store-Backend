@@ -206,11 +206,20 @@ async create(data, files) {
     }
 
     if (sizesArray.length > 0) {
-      const sizeRecords = sizesArray.map(s => ({
-        product_id: product.id,
-        size: s.size,
-        stock: s.stock,
-      }));
+      const sizeRecords = sizesArray.map(s => {
+        const sizeVal = (typeof s === 'object' && s !== null) ? s.size : s;
+        const stockVal = (typeof s === 'object' && s !== null) ? (s.stock || 0) : 0;
+        
+        if (sizeVal === undefined || sizeVal === null) {
+          throw new Error("Mỗi bản ghi kích thước phải có giá trị 'size'");
+        }
+
+        return {
+          product_id: product.id,
+          size: parseFloat(sizeVal),
+          stock: parseInt(stockVal),
+        };
+      });
       await ProductSize.bulkCreate(sizeRecords, { transaction: t });
     }
     await t.commit();
@@ -267,11 +276,20 @@ async update(id, data, files) {
 
     if (sizesArray.length > 0) {
       await ProductSize.destroy({ where: { product_id: product.id }, transaction: t });
-      const sizeRecords = sizesArray.map(s => ({
-        product_id: product.id,
-        size: s.size,
-        stock: s.stock,
-      }));
+      const sizeRecords = sizesArray.map(s => {
+        const sizeVal = (typeof s === 'object' && s !== null) ? s.size : s;
+        const stockVal = (typeof s === 'object' && s !== null) ? (s.stock || 0) : 0;
+
+        if (sizeVal === undefined || sizeVal === null) {
+          throw new Error("Mỗi bản ghi kích thước phải có giá trị 'size'");
+        }
+
+        return {
+          product_id: product.id,
+          size: parseFloat(sizeVal),
+          stock: parseInt(stockVal),
+        };
+      });
       await ProductSize.bulkCreate(sizeRecords, { transaction: t });
     }
     await t.commit();

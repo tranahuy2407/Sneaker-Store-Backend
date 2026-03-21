@@ -74,9 +74,32 @@ export const BrandService = {
     }
   },
 
+  async getProductsBySlug(slug, { page = 1, limit = 20, sort }) {
+    const brand = await this.getBySlug(slug);
+    if (!brand) throw new Error("Thương hiệu không tồn tại");
+
+    const where = { brand_id: brand.id, status: "Active" };
+    const order = [];
+
+    if (sort === "price_asc") order.push(["price", "ASC"]);
+    else if (sort === "price_desc") order.push(["price", "DESC"]);
+    else if (sort === "name_asc") order.push(["name", "ASC"]);
+    else if (sort === "name_desc") order.push(["name", "DESC"]);
+    else order.push(["created_at", "DESC"]);
+
+    return await PaginationService.paginate(Product, {
+      page,
+      limit,
+      where,
+      order,
+      include: ["images", "categories"],
+    });
+  },
+
   async getProducts(brandId) {
     return await Product.findAll({
       where: { brand_id: brandId },
+      include: ["images"],
       order: [["created_at", "DESC"]],
     });
   },

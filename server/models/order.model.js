@@ -82,6 +82,17 @@ const Order = sequelize.define("Order", {
     defaultValue: 0,
   },
 
+  shipping_cost: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    defaultValue: 0,
+  },
+
+  shipping_cost_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
+
   payment_status: {
     type: DataTypes.ENUM("Unpaid", "Paid", "Refunded"),
     allowNull: false,

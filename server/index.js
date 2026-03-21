@@ -33,6 +33,7 @@ import homeSectionRouter from "./routers/home_section.router.js";
 import newsRouter from "./routers/news.router.js";
 import contactRouter from "./routers/contact.router.js";
 import storeInfoRouter from "./routers/store_info.router.js";
+import dashboardRouter from "./routers/dashboard.router.js";
 
 dotenv.config();
 
@@ -83,7 +84,8 @@ const port = 8080;
     app.use(homeSectionRouter);
     app.use(newsRouter);
     app.use(contactRouter);
-    app.use(storeInfoRouter);    
+    app.use(storeInfoRouter);  
+    app.use(dashboardRouter);  
 
     server.listen(port, () => {
       console.log(`Server chạy trên port ${port}`);

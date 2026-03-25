@@ -1,4 +1,4 @@
-import { ShippingCostService } from "../services/shippingcost.service.js";
+import { ShippingCostService } from "../services/shippingCost.service.js";
 
 const service = new ShippingCostService();
 

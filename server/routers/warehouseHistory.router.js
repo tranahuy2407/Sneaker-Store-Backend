@@ -5,8 +5,10 @@ import {
   createWarehouseHistory,
   updateWarehouseHistory,
   deleteWarehouseHistory,
+  importWarehouseExcel,
 } from "../controllers/warehouseHistory.controller.js";
 import { admin } from "../middlewares/auth.middleware.js";
+import { uploadExcel } from "../middlewares/upload.middleware.js";
 
 const warehouseHistoryRouter = express.Router();
 
@@ -20,7 +22,13 @@ warehouseHistoryRouter.get(
   getWarehouseHistoryById
 );
 
-// Protected routes (Admin only)
+warehouseHistoryRouter.post(
+  "/api/v1/warehouse-histories/import-excel",
+  admin,
+  uploadExcel,
+  importWarehouseExcel
+);
+
 warehouseHistoryRouter.post(
   "/api/v1/warehouse-histories",
   admin,

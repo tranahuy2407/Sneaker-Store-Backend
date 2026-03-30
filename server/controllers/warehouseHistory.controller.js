@@ -82,3 +82,30 @@ export const deleteWarehouseHistory = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+// IMPORT EXCEL
+export const importWarehouseExcel = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    if (!req.admin?.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const result = await WarehouseHistoryService.importFromExcel(
+      req.file.buffer,
+      req.admin.id
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Import processing finished",
+      data: result,
+    });
+  } catch (error) {
+    console.error("IMPORT ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

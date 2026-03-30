@@ -34,6 +34,7 @@ import newsRouter from "./routers/news.router.js";
 import contactRouter from "./routers/contact.router.js";
 import storeInfoRouter from "./routers/store_info.router.js";
 import dashboardRouter from "./routers/dashboard.router.js";
+import seedRouter from "./routers/seed.router.js";
 
 dotenv.config();
 
@@ -53,7 +54,7 @@ app.use(cookieParser());
 
 initSocket(server);
 
-const port = 8080;
+const port = process.env.PORT || 8080;
 
 (async () => {
   try {
@@ -85,7 +86,8 @@ const port = 8080;
     app.use(newsRouter);
     app.use(contactRouter);
     app.use(storeInfoRouter);  
-    app.use(dashboardRouter);  
+    app.use(dashboardRouter);
+    app.use(seedRouter);        // POST /api/seed?secret=...  
 
     server.listen(port, () => {
       console.log(`Server chạy trên port ${port}`);

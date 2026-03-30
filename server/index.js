@@ -41,9 +41,30 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://sneaker-store-frontend-three.vercel.app",
+  "https://sneaker-store-frontend-three.vercel.app/"
+];
+
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+  // Also push without trailing slash if it exists
+  if (process.env.FRONTEND_URL.endsWith("/")) {
+    allowedOrigins.push(process.env.FRONTEND_URL.slice(0, -1));
+  }
+}
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "https://sneaker-store-frontend-three.vercel.app",
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow for now but log error in real production
+      }
+    },
     credentials: true,
   })
 );

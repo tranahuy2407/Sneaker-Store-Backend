@@ -59,7 +59,6 @@ const done = (msg) => console.log(`✅  ${msg}`);
 // ─── clear all tables (reverse-dependency order) ─────────────────────────────
 async function clearAll() {
   step("Xoá toàn bộ dữ liệu cũ...");
-  await sequelize.query("SET session_replication_role = 'replica'"); // tắt FK check (PostgreSQL)
 
   const tablesToClear = [
     "notifications",
@@ -95,16 +94,24 @@ async function clearAll() {
     "admins",
   ];
 
-  // Dùng TRUNCATE CASCADE cho PostgreSQL hoặc xoá tuần tự
+  // Dùng DELETE FROM theo thứ tự phụ thuộc (tương thích managed Postgres)
   for (const table of tablesToClear) {
     try {
-      await sequelize.query(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE`);
+      await sequelize.query(`DELETE FROM "${table}"`);
     } catch {
       // bỏ qua nếu bảng chưa tồn tại
     }
   }
 
-  await sequelize.query("SET session_replication_role = 'origin'"); // bật lại FK
+  // Reset auto-increment sequences
+  for (const table of tablesToClear) {
+    try {
+      await sequelize.query(`ALTER SEQUENCE IF EXISTS "${table}_id_seq" RESTART WITH 1`);
+    } catch {
+      // bỏ qua
+    }
+  }
+
   done("Đã xoá dữ liệu cũ");
 }
 

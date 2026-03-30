@@ -37,17 +37,24 @@ const TABLES = [
 ];
 
 async function clearDatabase() {
-  await sequelize.query("SET session_replication_role = 'replica'");
+  // Dùng DELETE FROM theo đúng thứ tự phụ thuộc (không cần superuser)
   for (const table of TABLES) {
     try {
-      await sequelize.query(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE`);
+      await sequelize.query(`DELETE FROM "${table}"`);
     } catch (_) { /* bảng chưa tồn tại → bỏ qua */ }
   }
-  await sequelize.query("SET session_replication_role = 'origin'");
+
+  // Reset auto-increment sequences (bỏ qua nếu không có quyền)
+  for (const table of TABLES) {
+    try {
+      await sequelize.query(
+        `ALTER SEQUENCE IF EXISTS "${table}_id_seq" RESTART WITH 1`
+      );
+    } catch (_) { /* bỏ qua */ }
+  }
 }
 
 export const runSeed = async (req, res) => {
-  // ── Kiểm tra secret key ────────────────────────────────────────────────────
   const { secret } = req.query;
   const SEED_SECRET = process.env.SEED_SECRET || "sneaker_seed_2025";
 

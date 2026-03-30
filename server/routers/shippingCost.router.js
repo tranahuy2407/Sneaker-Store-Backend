@@ -1,5 +1,5 @@
 import express from "express";
-import { ShippingCostController } from "../controllers/shippingcost.controller.js";
+import { ShippingCostController } from "../controllers/shippingCost.controller.js";
 import { admin } from "../middlewares/auth.middleware.js";
 
 const shippingCostRouter = express.Router();

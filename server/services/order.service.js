@@ -12,6 +12,7 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
   let order;     
   let details;
   let finalTotal = total;
+  let isOnlinePayment = false;
 
   await sequelize.transaction(async (t) => {
     const productIds = items.map(i => i.product_id || i.productId);
@@ -45,9 +46,6 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
         shippingCostId = sc.id;
       }
     }
-
-
-    finalTotal = total;
 
     let retries = 0;
     while (!order && retries < 5) {
@@ -96,7 +94,6 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       const product_id = i.product_id || i.productId;
       const sizeId = i.product_size_id || i.productSizeId;
       const product = products.find(p => p.id == product_id);
-      
       const itemPrice = product ? (product.discountPrice || product.price) : (i.price ?? 0);
 
       return {
@@ -126,6 +123,7 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
 
     const paymentMethod = await PaymentMethod.findByPk(payment_method_id, { transaction: t });
     if (paymentMethod && paymentMethod.name.toLowerCase().includes("zalopay")) {
+      isOnlinePayment = true;
       const zaloResult = await ZaloPayService.createPayment({
         orderId: order.id,
         amount: total,
@@ -136,17 +134,22 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       if (zaloResult.return_code === 1) {
         await order.update({ transaction_id: zaloResult.app_trans_id }, { transaction: t });
         order.setDataValue("paymentUrl", zaloResult.order_url);
+      } else {
+        throw new Error(zaloResult.return_message || "Không thể tạo giao dịch ZaloPay. Vui lòng thử lại.");
       }
     }
 
-    if (user?.id) {
+    // Chỉ xoá giỏ hàng ngay lập tức nếu là thanh toán OFFLINE (Ví dụ: COD)
+    // Thanh toán online sẽ xoá khi có callback/status thành công
+    if (user?.id && !isOnlinePayment) {
       await cartService.clearCart(user.id, t);
+    }
 
+    if (user?.id) {
       const addressCount = await UserAddress.count({ 
         where: { user_id: user.id },
         transaction: t 
       });
-
       if (addressCount === 0) {
         await UserAddress.create({
           user_id: user.id,
@@ -163,6 +166,7 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
     }
   }); 
 
+  if (!isOnlinePayment) {
     await publishOrderCreated({
       orderId: order.id,
       orderCode: order.order_code,
@@ -172,7 +176,7 @@ async createOrder({ user, items, payment_method_id, shippingInfo, total }) {
       items: details,
       totalAmount: finalTotal,
     });
-
+  }
 
   return order;
 },

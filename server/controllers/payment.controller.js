@@ -46,8 +46,6 @@ export const PaymentController = {
     let result = {};
     try {
       const { data: dataStr, mac: reqMac } = req.body;
-      console.log("[ZaloPay] Callback body raw:", req.body);
-      
       const isValid = ZaloPayService.verifyCallback(dataStr, reqMac);
 
       if (!isValid) {
@@ -56,43 +54,10 @@ export const PaymentController = {
         result.return_message = "mac not equal";
       } else {
         const dataJson = JSON.parse(dataStr);
-        console.log("[ZaloPay] Callback data verified:", dataJson);
         const app_trans_id = dataJson["app_trans_id"];
         const zp_trans_id = dataJson["zp_trans_id"];
 
-        // Cập nhật trạng thái đơn hàng trong database
-        const order = await Order.findOne({ where: { transaction_id: app_trans_id } });
-        if (order) {
-          console.log("[ZaloPay] Found order for callback:", order.id);
-          await order.update({ 
-            payment_status: "Paid",
-            status: "Processing",
-            zp_trans_id: zp_trans_id?.toString(),
-            note: "Đơn hàng đã được thanh toán qua ZaloPay."
-          });
-          console.log(`[ZaloPay] Order ${order.id} status updated to Paid.`);
-
-          // Thêm thông báo cho người dùng
-          if (order.user_id) {
-            try {
-              const { Notification } = await import("../models/index.js");
-              await Notification.create({
-                title: "Thanh toán thành công",
-                message: `Đơn hàng #${order.order_code} đã được thanh toán thành công qua ZaloPay.`,
-                type: "payment_success",
-                entity_type: "order",
-                entity_id: order.id,
-                receiver_type: "user",
-                receiver_id: order.user_id,
-              });
-              console.log(`[ZaloPay] Notification created for user: ${order.user_id}`);
-            } catch (notifErr) {
-              console.error("[ZaloPay] Failed to create notification:", notifErr.message);
-            }
-          }
-        } else {
-          console.warn(`[ZaloPay] Order not found for trans_id: ${app_trans_id}`);
-        }
+        await this.handlePaymentSuccess(app_trans_id, zp_trans_id);
 
         result.return_code = 1;
         result.return_message = "success";
@@ -114,19 +79,99 @@ export const PaymentController = {
       const result = await ZaloPayService.checkStatus(app_trans_id);
       
       if (result.return_code === 1) {
-         const order = await Order.findOne({ where: { transaction_id: app_trans_id } });
-         if (order && order.payment_status !== "Paid") {
-            await order.update({ 
-              payment_status: "Paid", 
-              status: "Processing",
-              zp_trans_id: result.zp_trans_id?.toString()
-            });
-         }
+         await this.handlePaymentSuccess(app_trans_id, result.zp_trans_id);
+      } else if (result.return_code === 3) {
+        // ZaloPay thông báo lỗi giao dịch hoặc đã bị huỷ
+        const order = await Order.findOne({ where: { transaction_id: app_trans_id } });
+        if (order && order.status === "Pending") {
+          const { OrderService } = await import("../services/order.service.js");
+          await OrderService.cancelOrder({
+            orderId: order.id,
+            reason: "Thanh toán giao dịch ZaloPay không thành công hoặc bị huỷ.",
+            user: { id: order.user_id }
+          });
+          console.log(`[ZaloPay] Order ${order.id} automatically cancelled due to payment failure.`);
+        }
       }
 
       res.status(200).json(result);
     } catch (err) {
       res.status(500).json({ message: err.message });
+    }
+  },
+
+  /**
+   * Hàm xử lý chung khi thanh toán thành công
+   */
+  async handlePaymentSuccess(app_trans_id, zp_trans_id) {
+    const { OrderDetail, Notification } = await import("../models/index.js");
+    const order = await Order.findOne({ 
+      where: { transaction_id: app_trans_id },
+      include: [{ model: OrderDetail, as: "details" }] 
+    });
+
+    if (!order) {
+      console.warn(`[ZaloPay] Order not found for trans_id: ${app_trans_id}`);
+      return;
+    }
+
+    if (order.payment_status === "Paid") {
+      return; // Đã xử lý rồi
+    }
+
+    console.log("[ZaloPay] Handling payment success for order:", order.id);
+    
+    // Xoá giỏ hàng sau khi thanh toán thành công
+    if (order.user_id) {
+      const { default: cartService } = await import("../services/cart.service.js");
+      await cartService.clearCart(order.user_id);
+    }
+    await order.update({ 
+      payment_status: "Paid",
+      status: "Processing",
+      zp_trans_id: zp_trans_id?.toString(),
+      note: "Đơn hàng đã được thanh toán qua ZaloPay."
+    });
+
+    // 1. Kích hoạt quy trình xử lý đơn hàng (Invoice, Email, Admin Noti) عبر Queue
+    const itemsForQueue = order.details.map(d => ({
+      product_id: d.product_id,
+      product_size_id: d.product_size_id,
+      quantity: d.quantity,
+      price: d.price,
+      name: d.name || "Sản phẩm"
+    }));
+
+    try {
+      const { publishOrderCreated } = await import("../queues/order.producer.js");
+      await publishOrderCreated({
+        orderId: order.id,
+        orderCode: order.order_code,
+        userId: order.user_id,
+        email: order.email,
+        receiverName: order.receiver_name,
+        items: itemsForQueue,
+        totalAmount: order.total_amount,
+      });
+    } catch (queueErr) {
+      console.error("[ZaloPay] Failed to publish order_created event:", queueErr.message);
+    }
+
+    // 2. Thêm thông báo cho người dùng
+    if (order.user_id) {
+      try {
+        await Notification.create({
+          title: "Thanh toán thành công",
+          message: `Đơn hàng #${order.order_code} đã được thanh toán thành công qua ZaloPay.`,
+          type: "payment_success",
+          entity_type: "order",
+          entity_id: order.id,
+          receiver_type: "user",
+          receiver_id: order.user_id,
+        });
+      } catch (notifErr) {
+        console.error("[ZaloPay] Failed to create notification:", notifErr.message);
+      }
     }
   },
 

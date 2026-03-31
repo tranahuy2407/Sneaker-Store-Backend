@@ -19,7 +19,7 @@ export const ZaloPayService = {
    */
   async createPayment({ orderId, amount, customerName, items = [] }) {
     const embed_data = JSON.stringify({
-       redirecturl: `${process.env.FRONTEND_URL}/payment-success?orderId=${orderId}`,
+       redirecturl: `${process.env.FRONTEND_URL}/payment-return?orderId=${orderId}`,
     });
     
     const items_str = JSON.stringify(items);

@@ -1,5 +1,5 @@
 import { Sequelize } from "sequelize";
-import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification, UserAddress, Coupon, ShippingCost } from "../models/index.js";
+import { sequelize, Order, OrderDetail, Cart, CartItem, PaymentMethod, Product, ProductImage, ProductSize, Notification, UserAddress, Coupon, ShippingCost, User } from "../models/index.js";
 import { publishOrderCancelled } from "../queues/order.cancel.producer.js";
 import { publishOrderCreated } from "../queues/order.producer.js";
 import cartService from "./cart.service.js";
@@ -336,6 +336,16 @@ async updateStatus({ orderId, status }) {
   }
 
   await order.update({ status });
+
+  // Update User Total Spent if status is Completed
+  if (status === "Completed" && order.user_id) {
+    const user = await User.findByPk(order.user_id);
+    if (user) {
+      await user.update({
+        total_spent: Sequelize.literal(`total_spent + ${order.total_amount}`)
+      });
+    }
+  }
 
   if (order.user_id) {
     await Notification.create({

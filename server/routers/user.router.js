@@ -16,6 +16,10 @@
     resetPassword,
     googleLogin
   } from "../controllers/user.controller.js";
+  import {
+    getLoyaltyStatus,
+    claimLoyaltyGift
+  } from "../controllers/loyalty.controller.js";
   import { user } from "../middlewares/user.middleware.js";
   import { admin } from "../middlewares/auth.middleware.js";
 
@@ -45,5 +49,9 @@
   userRouter.get("/api/v1/admin/users/stats", admin, adminUserStats);
   userRouter.put("/api/v1/user/profile", user, updateUserProfile);
   userRouter.post("/api/v1/user/address", user, addUserAddress);
+
+  // Loyalty routes
+  userRouter.get("/api/v1/user/loyalty/status", user, getLoyaltyStatus);
+  userRouter.post("/api/v1/user/loyalty/claim", user, claimLoyaltyGift);
 
   export default userRouter;

@@ -40,6 +40,11 @@ const User = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    total_spent: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
     created_at: { type: DataTypes.DATE, defaultValue: Sequelize.NOW },
     updated_at: { type: DataTypes.DATE, defaultValue: Sequelize.NOW },
   },

@@ -100,4 +100,4 @@ export const uploadExcel = multer({
       cb(new Error("Only Excel files (.xlsx, .xls) are allowed!"), false);
     }
   },
-}).single("file");
+}).single("excel");

@@ -1,6 +1,5 @@
 import { redisClient } from "../config/redis.js";
-
-const DEFAULT_TTL = 3600; // 1 hour
+import { CACHE_TTL, generateCacheKey, generateCachePattern } from "../config/cache.config.js";
 
 export const RedisService = {
   async get(key) {
@@ -13,7 +12,7 @@ export const RedisService = {
     }
   },
 
-  async set(key, value, ttl = DEFAULT_TTL) {
+  async set(key, value, ttl = CACHE_TTL.MEDIUM) {
     try {
       const data = JSON.stringify(value);
       await redisClient.setex(key, ttl, data);
@@ -47,6 +46,16 @@ export const RedisService = {
     }
   },
 
+  async deleteNamespace(namespace) {
+    try {
+      const pattern = generateCachePattern(namespace);
+      return await this.deletePattern(pattern);
+    } catch (error) {
+      console.error("Redis deleteNamespace error:", error.message);
+      return false;
+    }
+  },
+
   async exists(key) {
     try {
       const result = await redisClient.exists(key);
@@ -57,15 +66,17 @@ export const RedisService = {
     }
   },
 
+  // Legacy method - kept for backward compatibility
   generateKey(prefix, params) {
-    const sortedParams = Object.keys(params)
-      .sort()
-      .map((key) => `${key}:${params[key]}`)
-      .join(":");
-    return `${prefix}:${sortedParams}`;
+    return generateCacheKey(prefix, 'data', params);
   },
 
-  async getOrSet(key, fetchFn, ttl = DEFAULT_TTL) {
+  // New hierarchical key generation
+  generateCacheKey,
+
+  generateCachePattern,
+
+  async getOrSet(key, fetchFn, ttl = CACHE_TTL.MEDIUM) {
     try {
       const cached = await this.get(key);
       if (cached) {
@@ -83,6 +94,29 @@ export const RedisService = {
     }
   },
 
+  async getCacheInfo() {
+    try {
+      const keys = await redisClient.keys(`${generateCachePattern('*')}`);
+      const namespaces = {};
+      
+      keys.forEach(key => {
+        const parts = key.split(':');
+        if (parts.length >= 2) {
+          const ns = parts[1];
+          namespaces[ns] = (namespaces[ns] || 0) + 1;
+        }
+      });
+      
+      return {
+        totalKeys: keys.length,
+        namespaces
+      };
+    } catch (error) {
+      console.error("Redis getCacheInfo error:", error.message);
+      return { totalKeys: 0, namespaces: {} };
+    }
+  },
+
   async flushAll() {
     try {
       await redisClient.flushall();
@@ -93,6 +127,8 @@ export const RedisService = {
       return false;
     }
   },
+
+  CACHE_TTL
 };
 
 export default RedisService;

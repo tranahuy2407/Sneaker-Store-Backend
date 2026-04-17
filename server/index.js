@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 
 import { connectDB, sequelize } from "./config/connect.js";
+import { redisClient } from "./config/redis.js";
 import { connectRabbitMQ } from "./queues/rabbit.js";
 import { startOrderConsumer } from "./queues/order.consumer.js";
 import { startOrderCancelConsumer } from "./queues/order.cancel.consumer.js";
@@ -81,6 +82,9 @@ const port = process.env.PORT || 8080;
   try {
     await connectDB();
     await sequelize.sync({ alter: true });
+    await redisClient.connect().catch(() => {
+      console.log("Redis không khả dụng, tiếp tục không caching");
+    });
     await connectRabbitMQ();
     await startOrderConsumer();
     await startOrderCancelConsumer();

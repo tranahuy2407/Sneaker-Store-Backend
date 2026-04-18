@@ -183,3 +183,51 @@ export const sendOrderCancelEmail = async (to, orderData) => {
 
   return await transporter.sendMail(mailOptions);
 };
+
+export const sendContactReplyEmail = async (to, data) => {
+  const { name, originalMessage, replyMessage, subject } = data;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to,
+    subject: `Phản hồi liên hệ: ${subject || "Yêu cầu từ khách hàng"} - Sneaker Store`,
+    attachments: [LOGO_ATTACHMENT],
+    html: `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 40px 0;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <div style="background-color: #1a1a1a; padding: 30px; text-align: center;">
+            <img src="cid:${SNEAKER_LOGO_CID}" alt="Sneaker Store Logo" style="max-width: 120px; height: auto; margin: 0 auto 10px; display: block;">
+            <h1 style="color: #ffffff; margin: 0; letter-spacing: 2px; font-weight: 800; font-size: 24px;">SNEAKER STORE</h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px;">
+            <h2 style="color: #333; font-size: 20px; margin-top: 0;">Xin chào ${name},</h2>
+            <p style="color: #666; font-size: 16px; line-height: 1.6;">Cảm ơn bạn đã liên hệ với Sneaker Store. Chúng tôi đã nhận được tin nhắn của bạn và có phản hồi như sau:</p>
+            
+            <div style="background-color: #f8f9fa; border-left: 4px solid #1a1a1a; padding: 20px; margin: 25px 0;">
+              <p style="margin: 0; color: #1a1a1a; font-weight: bold; font-size: 14px; text-transform: uppercase;">Phản hồi từ Sneaker Store:</p>
+              <p style="margin: 10px 0 0; color: #444; font-size: 16px; line-height: 1.6; white-space: pre-wrap;">${replyMessage}</p>
+            </div>
+
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eeeeee;">
+              <p style="color: #999; font-size: 13px; font-weight: bold; margin-bottom: 5px;">Tin nhắn gốc của bạn:</p>
+              <p style="color: #999; font-size: 13px; font-style: italic; margin: 0;">"${originalMessage}"</p>
+            </div>
+            
+            <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">Nếu bạn có thêm bất kỳ thắc mắc nào, vui lòng phản hồi lại email này hoặc liên hệ hotline của chúng tôi.</p>
+            <p style="color: #333; font-size: 16px; font-weight: bold;">Trân trọng,<br>Đội ngũ Sneaker Store</p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background-color: #f9f9f9; padding: 20px; text-align: center; border-top: 1px solid #eeeeee;">
+            <p style="color: #777; font-size: 12px; margin: 0;">&copy; 2026 Sneaker Store. 123 Street Name, Saigon, VN.</p>
+          </div>
+        </div>
+      </div>
+    `,
+  };
+
+  return await transporter.sendMail(mailOptions);
+};

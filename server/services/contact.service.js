@@ -1,5 +1,6 @@
 import { Contact } from "../models/index.js";
 import { Op } from "sequelize";
+import { sendContactReplyEmail } from "./mail.service.js";
 
 export const ContactService = {
   async create(data) {
@@ -50,6 +51,28 @@ export const ContactService = {
     }
 
     await contact.update({ status });
+    return contact;
+  },
+
+  async reply(id, replyMessage) {
+    const contact = await Contact.findByPk(id);
+    if (!contact) throw new Error("Liên hệ không tồn tại");
+
+    // Gửi mail phản hồi
+    await sendContactReplyEmail(contact.email, {
+      name: contact.name,
+      originalMessage: contact.message,
+      replyMessage,
+      subject: contact.subject,
+    });
+
+    // Cập nhật trạng thái và lưu nội dung phản hồi
+    await contact.update({
+      reply_message: replyMessage,
+      replied_at: new Date(),
+      status: "replied",
+    });
+
     return contact;
   },
 

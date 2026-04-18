@@ -66,4 +66,22 @@ export const ContactController = {
       res.status(500).json({ message: err.message });
     }
   },
+
+  // ADMIN: trả lời liên hệ
+  async reply(req, res) {
+    try {
+      const { id } = req.params;
+      const { replyMessage } = req.body;
+
+      if (!replyMessage) {
+        return res.status(400).json({ message: "Nội dung phản hồi là bắt buộc" });
+      }
+
+      const contact = await ContactService.reply(id, replyMessage);
+      res.status(200).json({ message: "Gửi phản hồi thành công", data: contact });
+    } catch (err) {
+      console.error("REPLY CONTACT ERROR:", err);
+      res.status(500).json({ message: err.message });
+    }
+  },
 };

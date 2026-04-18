@@ -10,6 +10,8 @@ const Contact = sequelize.define(
     phone: { type: DataTypes.STRING(20), allowNull: true },
     subject: { type: DataTypes.STRING(255), allowNull: true },
     message: { type: DataTypes.TEXT, allowNull: false },
+    reply_message: { type: DataTypes.TEXT, allowNull: true },
+    replied_at: { type: DataTypes.DATE, allowNull: true },
     status: {
       type: DataTypes.ENUM("new", "read", "replied"),
       defaultValue: "new",

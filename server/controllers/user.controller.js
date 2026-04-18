@@ -58,6 +58,8 @@ export const loginUser = async (req, res) => {
     res.status(200).json({
       status: "success",
       data: user,
+      accessToken: token,
+      refreshToken: refreshToken,
     });
   } catch (error) {
     res.status(401).json({
@@ -81,8 +83,7 @@ export const logoutUser = async (req, res) => {
 // REFRESH TOKEN
 export const refreshUserToken = async (req, res) => {
   try {
-    const oldRefreshToken = req.cookies.userRefreshToken;
-
+    const oldRefreshToken = req.cookies.userRefreshToken || req.body.refreshToken;
     if (!oldRefreshToken) throw new Error("Refresh token not found");
 
     const { token, refreshToken: newRefreshToken } =
@@ -105,6 +106,8 @@ export const refreshUserToken = async (req, res) => {
     res.status(200).json({
       status: "success",
       message: "Token refreshed successfully",
+      accessToken: token,
+      refreshToken: newRefreshToken
     });
   } catch (error) {
     res.status(401).json({
@@ -231,6 +234,8 @@ export const googleLogin = async (req, res) => {
     res.status(200).json({
       status: "success",
       data: user,
+      accessToken: token,
+      refreshToken: refreshToken,
     });
   } catch (error) {
     res.status(401).json({

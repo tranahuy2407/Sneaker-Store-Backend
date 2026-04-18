@@ -7,7 +7,14 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 // Middleware xác thực User
 export const user = async (req, res, next) => {
   try {
-    const token = req.cookies.userToken;
+    let token = req.cookies.userToken;
+    
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+    }
 
     if (!token) {
       return res.status(401).json({
@@ -40,7 +47,14 @@ export const user = async (req, res, next) => {
 
 export const guest = async (req, res, next) => {
   try {
-    const token = req.cookies.userToken;
+    let token = req.cookies.userToken;
+    
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+    }
 
     if (!token) {
       req.user = null;

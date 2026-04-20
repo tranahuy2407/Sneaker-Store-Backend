@@ -1,5 +1,5 @@
-import Brand from "../models/brand.model.js";
-import Product from "../models/product.model.js";
+import { Op } from "sequelize";
+import { sequelize, Brand, Product, ProductImage, Category } from "../models/index.js";
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -74,25 +74,66 @@ export const BrandService = {
     }
   },
 
-  async getProductsBySlug(slug, { page = 1, limit = 20, sort }) {
+  async getProductsBySlug(slug, filters = {}) {
+    const {
+      page = 1,
+      limit = 20,
+      minPrice,
+      maxPrice,
+      categoryIds,
+      sort,
+      search
+    } = filters;
+
     const brand = await this.getBySlug(slug);
     if (!brand) throw new Error("Thương hiệu không tồn tại");
 
     const where = { brand_id: brand.id, status: "Active" };
-    const order = [];
 
-    if (sort === "price_asc") order.push(["price", "ASC"]);
-    else if (sort === "price_desc") order.push(["price", "DESC"]);
+    // Price Filter
+    if (minPrice || maxPrice) {
+      where.discountPrice = {};
+      if (minPrice) where.discountPrice[Op.gte] = Number(minPrice);
+      if (maxPrice) where.discountPrice[Op.lte] = Number(maxPrice);
+    }
+
+    let categoryFilter = {};
+    if (categoryIds) {
+      const ids = Array.isArray(categoryIds) ? categoryIds : categoryIds.split(",").map(Number);
+      categoryFilter = { id: { [Op.in]: ids } };
+    }
+
+    const order = [];
+    if (sort === "price_asc") order.push(["discountPrice", "ASC"]);
+    else if (sort === "price_desc") order.push(["discountPrice", "DESC"]);
     else if (sort === "name_asc") order.push(["name", "ASC"]);
     else if (sort === "name_desc") order.push(["name", "DESC"]);
+    else if (sort === "newest") order.push(["created_at", "DESC"]);
     else order.push(["created_at", "DESC"]);
 
+    if (search) {
+      where.name = sequelize.where(
+        sequelize.fn("LOWER", sequelize.col("Product.name")),
+        "LIKE",
+        `%${search.toLowerCase()}%`
+      );
+    }
+
     return await PaginationService.paginate(Product, {
-      page,
-      limit,
+      page: Number(page),
+      limit: Number(limit),
       where,
       order,
-      include: ["images", "categories"],
+      include: [
+        { model: ProductImage, as: "images", attributes: ["id", "url", "isDefault"] },
+        { 
+          model: Category, 
+          as: "categories", 
+          attributes: ["id", "name", "slug"], 
+          through: { attributes: [] },
+          ...(Object.keys(categoryFilter).length > 0 ? { where: categoryFilter } : {}),
+        },
+      ],
     });
   },
 

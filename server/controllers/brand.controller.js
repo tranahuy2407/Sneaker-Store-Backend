@@ -76,12 +76,7 @@ export const deleteBrand = async (req, res) => {
 export const getBrandProductsBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
-    const { page, limit, sort } = req.query;
-    const result = await BrandService.getProductsBySlug(slug, {
-      page: parseInt(page) || 1,
-      limit: parseInt(limit) || 20,
-      sort,
-    });
+    const result = await BrandService.getProductsBySlug(slug, req.query);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

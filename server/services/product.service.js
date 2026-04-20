@@ -3,147 +3,187 @@ import { sequelize, Product, ProductImage, Brand, Category, ProductSize } from "
 import { PaginationService } from "./pagination.service.js";
 
 export const ProductService = {
-// Lấy tất cả sản phẩm
-async getAll({ page = 1, limit = 10, search, status, categoryId, brandId, minPrice, maxPrice, sort }) {
-  const where = {};
-  if (status) where.status = status;
-  if (brandId) where.brand_id = parseInt(brandId);
-  if (minPrice || maxPrice) {
-  where.discountPrice = {};
-  if (minPrice) where.discountPrice[Op.gte] = Number(minPrice);
-  if (maxPrice) where.discountPrice[Op.lte] = Number(maxPrice);
-  }
+  // Lấy tất cả sản phẩm
+  async getAll({ page = 1, limit = 10, search, status, categoryId, categoryIds, brandId, brandIds, minPrice, maxPrice, sort }) {
+    const where = { status: status || "Active" };
+    
+    // Brand Filter
+    if (brandIds) {
+      const ids = Array.isArray(brandIds)
+        ? brandIds.map(Number)
+        : brandIds.split(",").map((id) => Number(id.trim())).filter(Boolean);
+      where.brand_id = { [Op.in]: ids };
+    } else if (brandId) {
+      where.brand_id = parseInt(brandId);
+    }
 
-  const include = [
-    { model: Brand, as: "brand", attributes: ["id", "name"] },
-    { model: ProductImage, as: "images", attributes: ["id", "url", "isDefault", "allText"] },
-    { model: ProductSize, as: "sizes", attributes: ["id", "size", "stock"] },
-    {
-      model: Category,
-      as: "categories",
-      attributes: ["id", "name"],
-      through: { attributes: [] },
-      ...(categoryId ? { where: { id: parseInt(categoryId) } } : {}),
-    },
-  ];
+    // Price Filter - lọc theo discountPrice (nếu có) hoặc price
+    if (minPrice !== undefined && minPrice !== '' && minPrice !== null ||
+        maxPrice !== undefined && maxPrice !== '' && maxPrice !== null) {
+      const priceCondition = {};
+      if (minPrice !== undefined && minPrice !== '' && minPrice !== null)
+        priceCondition[Op.gte] = Number(minPrice);
+      if (maxPrice !== undefined && maxPrice !== '' && maxPrice !== null)
+        priceCondition[Op.lte] = Number(maxPrice);
+      where.discountPrice = priceCondition;
+    }
 
-let order = [["created_at", "DESC"]];
+    // Category Filter
+    let hasCategoryFilter = false;
+    let categoryFilter = {};
+    if (categoryIds) {
+      const ids = Array.isArray(categoryIds)
+        ? categoryIds.map(Number)
+        : categoryIds.split(",").map((id) => Number(id.trim())).filter(Boolean);
+      if (ids.length > 0) {
+        categoryFilter = { id: { [Op.in]: ids } };
+        hasCategoryFilter = true;
+      }
+    } else if (categoryId) {
+      categoryFilter = { id: parseInt(categoryId) };
+      hasCategoryFilter = true;
+    }
 
-switch (sort) {
-  case "name_asc":
-    order = [["name", "ASC"]];
-    break;
-
-  case "name_desc":
-    order = [["name", "DESC"]];
-    break;
-
-  case "price_asc":
-    order = [["discountPrice", "ASC"]]; 
-    break;
-
-  case "price_desc":
-    order = [["discountPrice", "DESC"]]; 
-    break;
-}
-
-
-if (search) {
-  const keyword = search.toLowerCase();
-
-  const findByName = Product.findAll({
-    where: {
-      ...where,
-      name: sequelize.where(
-        sequelize.fn("LOWER", sequelize.col("Product.name")),
-        "LIKE",
-        `%${keyword}%`
-      ),
-    },
-    include,
-    order,
-  });
-
-  const findByBrand = Product.findAll({
-    where,
-    include: [
-      ...include,
-      {
-        model: Brand,
-        as: "brand",
-        where: sequelize.where(
-          sequelize.fn("LOWER", sequelize.col("brand.name")),
-          "LIKE",
-          `%${keyword}%`
-        ),
-      },
-    ],
-    order,
-  });
-
-  const findByCategory = Product.findAll({
-    where,
-    include: [
-      ...include,
+    const include = [
+      { model: Brand, as: "brand", attributes: ["id", "name"] },
+      { model: ProductImage, as: "images", attributes: ["id", "url", "isDefault", "allText"] },
+      { model: ProductSize, as: "sizes", attributes: ["id", "size", "stock"] },
       {
         model: Category,
         as: "categories",
+        attributes: ["id", "name"],
         through: { attributes: [] },
-        where: sequelize.where(
-          sequelize.fn("LOWER", sequelize.col("categories.name")),
-          "LIKE",
-          `%${keyword}%`
-        ),
+        // Khi có filter category: dùng INNER JOIN (required: true) để đảm bảo lọc đúng
+        ...(hasCategoryFilter ? { where: categoryFilter, required: true } : { required: false }),
       },
-    ],
-    order,
-  });
+    ];
 
-  const [byName, byBrand, byCategory] = await Promise.all([
-    findByName,
-    findByBrand,
-    findByCategory,
-  ]);
+    let order = [["created_at", "DESC"]];
 
-  const merged = [...byName, ...byBrand, ...byCategory];
-  const matched = [];
-  const seen = new Set();
-
-  for (const p of merged) {
-    if (!seen.has(p.id)) {
-      seen.add(p.id);
-      matched.push(p);
+    switch (sort) {
+      case "name_asc":
+        order = [["name", "ASC"]];
+        break;
+      case "name_desc":
+        order = [["name", "DESC"]];
+        break;
+      case "price_asc":
+        order = [["discountPrice", "ASC"]];
+        break;
+      case "price_desc":
+        order = [["discountPrice", "DESC"]];
+        break;
+      case "newest":
+        order = [["created_at", "DESC"]];
+        break;
+      case "popular":
+        order = [["created_at", "DESC"]];
+        break;
+      case "discount":
+        // Sắp xếp theo % giảm nhiều nhất
+        order = [[sequelize.literal("(price - discountPrice) / price"), "DESC"]];
+        break;
+      default:
+        order = [["created_at", "DESC"]];
     }
-  }
 
-  const all = matched;
+    if (search) {
+      const keyword = search.toLowerCase();
 
-  const total = all.length;
-  const totalPages = Math.ceil(total / limit);
-  const start = (page - 1) * limit;
-  const items = all.slice(start, start + limit);
+      const findByName = Product.findAll({
+        where: {
+          ...where,
+          name: sequelize.where(
+            sequelize.fn("LOWER", sequelize.col("Product.name")),
+            "LIKE",
+            `%${keyword}%`
+          ),
+        },
+        include,
+        order,
+      });
 
-  return {
-    items,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages,
-    },
-    matchedCount: matched.length,
-  };
-}
+      const findByBrand = Product.findAll({
+        where,
+        include: [
+          ...include.filter(inc => inc.as !== "brand"), // Replace brand include
+          {
+            model: Brand,
+            as: "brand",
+            where: sequelize.where(
+              sequelize.fn("LOWER", sequelize.col("brand.name")),
+              "LIKE",
+              `%${keyword}%`
+            ),
+          },
+        ],
+        order,
+      });
 
+      const findByCategory = Product.findAll({
+        where,
+        include: [
+          ...include.filter(inc => inc.as !== "categories"), // Replace categories include
+          {
+            model: Category,
+            as: "categories",
+            through: { attributes: [] },
+            where: {
+              ...(Object.keys(categoryFilter).length > 0 ? categoryFilter : {}),
+              name: sequelize.where(
+                sequelize.fn("LOWER", sequelize.col("categories.name")),
+                "LIKE",
+                `%${keyword}%`
+              ),
+            },
+          },
+        ],
+        order,
+      });
 
-  return PaginationService.paginate(Product, {
-    page,
-    limit,
-    where,
-    include,
-    order,
-  });
-},
+      const [byName, byBrand, byCategory] = await Promise.all([
+        findByName,
+        findByBrand,
+        findByCategory,
+      ]);
+
+      const merged = [...byName, ...byBrand, ...byCategory];
+      const matched = [];
+      const seen = new Set();
+
+      for (const p of merged) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          matched.push(p);
+        }
+      }
+
+      const all = matched;
+      const total = all.length;
+      const totalPages = Math.ceil(total / limit);
+      const start = (page - 1) * limit;
+      const items = all.slice(start, start + limit);
+
+      return {
+        data: items,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          totalPages,
+        },
+        matchedCount: matched.length,
+      };
+    }
+
+    return PaginationService.paginate(Product, {
+      page: Number(page),
+      limit: Number(limit),
+      where,
+      include,
+      order,
+    });
+  },
   async getById(id) {
     return Product.findByPk(id, {
       include: [

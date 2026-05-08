@@ -36,6 +36,7 @@ import contactRouter from "./routers/contact.router.js";
 import storeInfoRouter from "./routers/store_info.router.js";
 import dashboardRouter from "./routers/dashboard.router.js";
 import seedRouter from "./routers/seed.router.js";
+import { runSeedBackground } from "./controllers/seed.controller.js";
 
 dotenv.config();
 
@@ -112,10 +113,19 @@ const port = process.env.PORT || 8080;
     app.use(contactRouter);
     app.use(storeInfoRouter);  
     app.use(dashboardRouter);
-    app.use(seedRouter);        // POST /api/seed?secret=...  
+    app.use(seedRouter);        
 
     server.listen(port, () => {
       console.log(`Server chạy trên port ${port}`);
+      
+      const isProduction = process.env.NODE_ENV === 'production';
+      const canSeedInProd = isProduction && process.env.AUTO_RUN_SEED_SECRET && process.env.AUTO_RUN_SEED_SECRET === process.env.SEED_SECRET;
+      const canSeedInLocal = !isProduction && process.env.AUTO_RUN_SEED === 'true';
+
+      if (canSeedInProd || canSeedInLocal) {
+        console.log(`⏳ Bắt đầu tự động chạy seed (Môi trường: ${isProduction ? 'Production' : 'Local'})...`);
+        runSeedBackground();
+      }
     });
   } catch (err) {
     console.error("Lỗi khi khởi động server:", err);

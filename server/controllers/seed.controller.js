@@ -80,10 +80,14 @@ export const runSeed = async (req, res) => {
   });
 
   // ── Chạy seed ở background ─────────────────────────────────────────────────
+  runSeedBackground();
+};
+
+export const runSeedBackground = async () => {
+  if (global._seeding) return;
   global._seeding = true;
-  (async () => {
-    try {
-      console.log("\n🚀 [SEED] Bắt đầu seeding dữ liệu...");
+  try {
+    console.log("\n🚀 [SEED] Bắt đầu seeding dữ liệu...");
 
       await clearDatabase();
       console.log("🗑️  [SEED] Đã xoá dữ liệu cũ");
@@ -121,7 +125,6 @@ export const runSeed = async (req, res) => {
     } finally {
       global._seeding = false;
     }
-  })();
 };
 
 export const getSeedStatus = (_req, res) => {
